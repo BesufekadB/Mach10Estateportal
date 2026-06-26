@@ -1,0 +1,103 @@
+@import "tailwindcss";
+
+:root {
+  --color-primary: #775a19;
+  --color-primary-container: #c5a059;
+  --color-primary-fixed: #ffdea5;
+  --color-background-luxury: #faf9f9;
+  --color-onyx: #1b1c1c;
+  --color-neutral-stone: #7f7667;
+  --color-stone-variant: #4e4639;
+  --color-outline-lucid: #d1c5b4;
+  --color-cream-low: #f4f3f3;
+  --color-card-bg: #ffffff;
+  --radius-ui: 1rem;
+  --radius-ui-sm: 0.75rem;
+}
+
+:root.dark {
+  --color-primary: #d2b06d;
+  --color-primary-container: #342611;
+  --color-primary-fixed: #ffe0a6;
+  --color-background-luxury: #090806;
+  --color-onyx: #f6f0e7;
+  --color-neutral-stone: #a39583;
+  --color-stone-variant: #e3d9ca;
+  --color-outline-lucid: #40392f;
+  --color-cream-low: #17130d;
+  --color-card-bg: #12100b;
+}
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-display: "Poppins", system-ui, -apple-system, sans-serif;
+  
+  --color-primary: var(--color-primary);
+  --color-primary-container: var(--color-primary-container);
+  --color-primary-fixed: var(--color-primary-fixed);
+  --color-background-luxury: var(--color-background-luxury);
+  --color-onyx: var(--color-onyx);
+  --color-neutral-stone: var(--color-neutral-stone);
+  --color-stone-variant: var(--color-stone-variant);
+  --color-outline-lucid: var(--color-outline-lucid);
+  --color-cream-low: var(--color-cream-low);
+  --color-card-bg: var(--color-card-bg);
+}
+
+@layer base {
+  html {
+    color-scheme: light;
+  }
+
+  :root.dark html,
+  :root.dark {
+    color-scheme: dark;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    background-color: var(--color-background-luxury);
+    color: var(--color-onyx);
+    background-image:
+      radial-gradient(circle at top, rgba(197, 160, 89, 0.08), transparent 30%),
+      radial-gradient(circle at bottom right, rgba(255, 222, 165, 0.04), transparent 26%);
+    transition-property: background-color, color, border-color, text-decoration-color, fill, stroke;
+    transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+    transition-duration: 300ms;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-display);
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    border-radius: var(--radius-ui-sm);
+  }
+
+  ::selection {
+    background: var(--color-primary);
+    color: var(--color-background-luxury);
+  }
+}
+
+/* Custom scrollbar to keep it sleek and minimalist */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-background-luxury);
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-outline-lucid) 82%, var(--color-primary) 18%);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
+}
