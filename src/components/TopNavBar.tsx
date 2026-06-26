@@ -39,36 +39,41 @@ export default function TopNavBar({
 
   return (
     <>
-      <header className="sticky top-0 w-full z-45 bg-background-luxury/80 dark:bg-card-bg/80 backdrop-blur-xl border-b border-outline-lucid/30 dark:border-outline-lucid/10 shadow-xs transition-all duration-300">
-        <div className="flex justify-between items-center h-20 px-6 md:px-16 max-w-7xl mx-auto gap-6">
+      <header className="sticky top-0 z-45 border-b border-outline-lucid/80 bg-card-bg backdrop-blur-xl transition-all duration-300">
+        <div className="flex justify-between items-center h-16 px-5 md:px-8 max-w-[1740px] mx-auto gap-5">
           
           {/* Brand Logo */}
           <div 
             onClick={() => onTabChange("dashboard")}
-            className="cursor-pointer font-display text-lg font-bold tracking-[0.2em] text-[#775a19] flex items-center gap-2 uppercase select-none"
+            className="cursor-pointer font-display text-sm font-semibold tracking-[0.18em] text-primary flex items-center gap-2 uppercase select-none"
           >
-            <Layers className="w-5 h-5 stroke-[1.5] text-[#775a19]" />
+            <Layers className="w-4 h-4 stroke-[1.6] text-primary" />
             <span className="flex flex-col leading-none">
-              <span>ESTATE PORTAL</span>
-              <span className="text-[8px] tracking-[0.35em] text-neutral-stone">BY MACH10</span>
+              <span className="text-[0.8rem] tracking-[0.22em] text-onyx dark:text-[#f4efe6]">ESTATE PORTAL</span>
+              <span className="text-[0.42rem] tracking-[0.38em] text-neutral-stone">BY MACH10</span>
             </span>
           </div>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center justify-center gap-8 flex-1 max-w-md mx-8">
+          <nav className="hidden md:flex items-center justify-center gap-10 flex-1 max-w-md mx-8">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
               return (
                 <button
                   key={item.id}
                   onClick={() => onTabChange(item.id)}
-                  className={`inline-flex h-10 min-w-[7.5rem] items-center justify-center font-sans text-[11px] tracking-[0.18em] uppercase font-medium border-b transition-all duration-300 ${
-                    isActive
-                      ? "text-[#775a19] border-[#775a19]"
-                      : "text-neutral-stone hover:text-onyx border-transparent"
+                  className={`relative inline-flex h-16 min-w-[5.25rem] items-center justify-center font-sans text-[10px] tracking-[0.22em] uppercase font-medium transition-all duration-300 ${
+                    isActive ? "text-onyx dark:text-[#f1e7d5]" : "text-stone-variant dark:text-neutral-stone hover:text-onyx dark:hover:text-[#f1e7d5]"
                   }`}
                 >
-                  {item.label}
+                  <span>{item.label}</span>
+                  <span
+                    className={`absolute left-1/2 top-[calc(100%-0.9rem)] h-[2px] -translate-x-1/2 rounded-full transition-all duration-300 ${
+                      isActive
+                        ? "w-10 bg-primary shadow-[0_0_12px_rgba(202,161,95,0.8)]"
+                        : "w-0 bg-transparent"
+                    }`}
+                  />
                 </button>
               );
             })}
@@ -79,34 +84,31 @@ export default function TopNavBar({
             {/* Theme Toggle Button */}
             <button
               onClick={onToggleTheme}
-              className="h-11 w-11 text-[#7f7667] hover:text-onyx dark:text-[#9e9380] dark:hover:text-onyx rounded-[var(--radius-ui-sm)] border border-outline-lucid/25 dark:border-outline-lucid/12 bg-white/70 dark:bg-card-bg/70 hover:bg-stone-50 dark:hover:bg-cream-low transition-colors duration-300 cursor-pointer flex items-center justify-center focus:outline-none"
+              className="interactive-press h-9 w-9 text-neutral-stone hover:text-onyx rounded-xl border border-outline-lucid/80 bg-card-bg hover:bg-cream-low transition-colors duration-300 cursor-pointer flex items-center justify-center focus:outline-none"
               title={theme === "dark" ? t("topnav.switchToLight") : t("topnav.switchToDark")}
               aria-label={t("topnav.toggleTheme")}
             >
               {theme === "dark" ? (
-                <Sun className="w-4 h-4 text-amber-300 stroke-[1.75]" />
+                <Sun className="w-3.5 h-3.5 text-primary stroke-[1.8]" />
               ) : (
-                <Moon className="w-4 h-4 text-[#775a19] stroke-[1.75]" />
+                <Moon className="w-3.5 h-3.5 text-primary stroke-[1.8]" />
               )}
             </button>
 
             <div 
               onClick={() => onTabChange("profile")}
-              className="hidden sm:flex h-11 min-w-[13rem] items-center gap-3 bg-stone-50 hover:bg-stone-100/80 dark:bg-cream-low/50 dark:hover:bg-cream-low cursor-pointer border border-[#d1c5b4]/20 px-3.5 rounded-[var(--radius-ui-sm)] transition-colors"
+              className="hidden sm:flex h-10 min-w-[11.5rem] items-center gap-3 bg-card-bg hover:bg-cream-low cursor-pointer border border-outline-lucid/80 px-3 rounded-xl transition-colors"
             >
-              <img 
-                src={user.avatarUrl} 
-                alt={user.name} 
-                className="w-6 h-6 rounded-full object-cover border border-[#775a19]/30"
-                referrerPolicy="no-referrer"
-              />
+              <div className="h-6 w-6 rounded-full border border-primary/70 text-[9px] font-semibold text-[#f3e7d3] flex items-center justify-center">
+                {user.name.slice(0, 2).toUpperCase()}
+              </div>
               <div className="text-left">
-                <p className="font-display text-[10px] uppercase font-semibold text-onyx tracking-wider leading-none">{user.name}</p>
-                <p className="text-[8px] font-sans tracking-widest text-[#7f7667] mt-0.5 uppercase">{t("topnav.premiumClient")}</p>
+                <p className="font-display text-[9px] uppercase font-semibold text-onyx tracking-[0.16em] leading-none">{user.name}</p>
+                <p className="text-[7px] font-sans tracking-[0.18em] text-neutral-stone mt-0.5 uppercase">{t("topnav.premiumClient")}</p>
               </div>
             </div>
 
-            <div className="hidden sm:inline-flex h-9 items-center rounded-full border border-outline-lucid/25 dark:border-outline-lucid/12 bg-white/75 dark:bg-card-bg/75 p-0.5">
+            <div className="hidden sm:inline-flex h-9 items-center rounded-xl border border-outline-lucid/80 bg-card-bg p-0.5">
               {[
                 { value: "English (International)" as const, label: "EN" },
                 { value: "Amharic" as const, label: "አማ" },
@@ -117,10 +119,10 @@ export default function TopNavBar({
                     key={option.value}
                     type="button"
                     onClick={() => onPreferredLanguageChange(option.value)}
-                    className={`min-w-[2.4rem] rounded-full px-2.5 py-1.5 text-[9px] font-semibold uppercase tracking-[0.14em] transition-colors ${
+                    className={`min-w-[2.2rem] rounded-lg px-2 py-1.5 text-[8px] font-semibold uppercase tracking-[0.2em] transition-colors ${
                       active
-                        ? "bg-onyx text-white dark:bg-primary dark:text-neutral-950"
-                        : "text-neutral-stone hover:text-onyx dark:hover:text-onyx"
+                        ? "bg-primary text-[#16120b]"
+                        : "text-stone-variant dark:text-neutral-stone hover:text-onyx dark:hover:text-[#f1e7d5]"
                     }`}
                     aria-pressed={active}
                   >
@@ -132,7 +134,7 @@ export default function TopNavBar({
 
             <button
               onClick={onLogout}
-              className="hidden md:flex items-center justify-center gap-2 bg-white/85 dark:bg-card-bg border border-outline-lucid/30 dark:border-outline-lucid/15 px-3.5 py-2 text-[10px] uppercase tracking-[0.2em] font-semibold text-neutral-stone hover:text-red-700 hover:border-red-200 dark:hover:border-red-900/40 rounded-[var(--radius-ui-sm)] transition-colors"
+              className="interactive-press hidden md:flex h-10 items-center justify-center gap-2 bg-card-bg border border-outline-lucid/80 px-4 py-2 text-[9px] uppercase tracking-[0.2em] font-semibold text-onyx hover:border-primary rounded-xl transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
               <span>{t("common.logout")}</span>
@@ -153,7 +155,7 @@ export default function TopNavBar({
 
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
-        <div className="absolute inset-x-0 top-20 min-h-[calc(100vh-5rem)] bg-white dark:bg-card-bg z-40 md:hidden animate-fade-in flex flex-col justify-between p-8 border-t border-outline-lucid/30 dark:border-outline-lucid/10">
+        <div className="absolute inset-x-0 top-16 min-h-[calc(100vh-4rem)] bg-white/96 dark:bg-[#0c1015] z-40 md:hidden animate-fade-in flex flex-col justify-between p-8 border-t border-outline-lucid/80 transition-colors duration-300">
           <nav className="flex flex-col gap-6 text-left">
             {navItems.map((item) => {
               const isActive = activeTab === item.id;
@@ -165,7 +167,7 @@ export default function TopNavBar({
                     setMobileMenuOpen(false);
                   }}
                   className={`text-sm uppercase tracking-widest font-display pb-2 border-b text-left ${
-                    isActive ? "text-[#775a19] border-[#775a19] font-semibold" : "text-neutral-stone border-stone-100"
+                    isActive ? "text-primary border-primary font-semibold" : "text-stone-variant dark:text-neutral-stone border-outline-lucid/40"
                   }`}
                 >
                   {item.label}
@@ -189,7 +191,7 @@ export default function TopNavBar({
                     className={`flex-1 rounded-[var(--radius-ui-sm)] border px-3 py-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] transition-colors ${
                       active
                         ? "border-primary bg-primary text-neutral-950"
-                        : "border-outline-lucid/25 bg-white/80 dark:bg-card-bg text-neutral-stone"
+                        : "border-outline-lucid/25 bg-stone-50 dark:bg-[#13181e] text-stone-variant dark:text-neutral-stone"
                     }`}
                   >
                     {option.label}
@@ -198,13 +200,10 @@ export default function TopNavBar({
               })}
             </div>
 
-            <div className="flex items-center gap-4 border-t border-stone-100 pt-6">
-              <img 
-                src={user.avatarUrl} 
-                alt={user.name} 
-                className="w-10 h-10 rounded-full object-cover border border-primary/30"
-                referrerPolicy="no-referrer"
-              />
+            <div className="flex items-center gap-4 border-t border-outline-lucid/40 pt-6">
+              <div className="h-10 w-10 rounded-full border border-primary/70 text-xs font-semibold text-[#f4efe6] flex items-center justify-center">
+                {user.name.slice(0, 2).toUpperCase()}
+              </div>
               <div>
                 <p className="font-display text-xs uppercase font-semibold text-onyx tracking-wider">{user.name}</p>
                 <p className="text-[10px] text-neutral-stone uppercase tracking-widest">{user.professionalTitle}</p>

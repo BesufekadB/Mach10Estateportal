@@ -1,5 +1,6 @@
 import type { AuthChangeEvent, Session, User } from "@supabase/supabase-js";
-import { DEFAULT_USERS, MOCK_PROJECTS } from "../data";
+import { MOCK_PROJECTS } from "../data";
+import { getLocaleFromLanguage, translate } from "./i18n";
 import type {
   AdminClientSummary,
   AdminProjectRecord,
@@ -39,6 +40,13 @@ export interface SignUpResult {
   user?: UserProfile;
 }
 
+export interface ChangePasswordInput {
+  email: string;
+  currentPassword?: string;
+  newPassword: string;
+  requireCurrentPassword?: boolean;
+}
+
 const defaultAvatar = (seed: string) =>
   `https://ui-avatars.com/api/?name=${encodeURIComponent(seed)}&background=f3ead8&color=775a19`;
 
@@ -65,16 +73,26 @@ export const normalizeTourEmbedUrl = (rawValue: string) => {
   return trimmed;
 };
 
-const fallbackScene = (project: ProjectRow, imageUrl: string): TourScene => ({
-  id: `${project.id}-scene`,
-  name: project.showcase_scene_name || "Primary Tour",
-  category: project.showcase_scene_category || "Main Space",
-  imageUrl,
-  description: project.showcase_scene_description || "Primary immersive project scene.",
-});
+const fallbackScene = (project: ProjectRow, imageUrl: string, preferredLanguage?: string): TourScene => {
+  const locale = getLocaleFromLanguage(preferredLanguage);
 
-const buildMockAuthResult = (email: string, password: string): PortalAuthResult | null => {
+  return {
+    id: `${project.id}-scene`,
+    name: project.showcase_scene_name || translate(locale, "adminPage.defaultSceneName"),
+    category: project.showcase_scene_category || translate(locale, "adminPage.defaultSceneCategory"),
+    imageUrl,
+    description: project.showcase_scene_description || translate(locale, "adminPage.defaultSceneDescription"),
+  };
+};
+
+const getLatestProjectAsset = (assets: ProjectAssetRow[], type: ProjectAssetType) =>
+  assets
+    .filter((asset) => asset.asset_type === type)
+    .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())[0];
+
+const buildMockAuthResult = async (email: string, password: string): Promise<PortalAuthResult | null> => {
   if (!allowMockAuth) return null;
+  const { DEFAULT_USERS } = await import("../dev/mockUsers");
   const mockUser = DEFAULT_USERS[normalizeEmail(email)] as MockUserRecord | undefined;
   if (!mockUser || mockUser.passwordHash !== password) return null;
   const { passwordHash, ...profile } = mockUser;
@@ -157,7 +175,8 @@ const mapUserToProfileRow = (user: UserProfile): Omit<ProfileRow, "created_at" |
 
 const buildLegacyProjects = async (
   projectRows: ProjectRow[],
-  assetRows: ProjectAssetRow[]
+  assetRows: ProjectAssetRow[],
+  preferredLanguage?: string
 ): Promise<Project[]> => {
   const client = ensureSupabase();
 
@@ -176,17 +195,18 @@ const buildLegacyProjects = async (
   return projectRows.map((projectRow) => {
     const projectAssets = assetRows.filter((asset) => asset.project_id === projectRow.id);
     const getAssetUrl = (type: ProjectAssetType) =>
-      urlMap.get(projectAssets.find((asset) => asset.asset_type === type)?.storage_path ?? "") ?? "";
+      urlMap.get(getLatestProjectAsset(projectAssets, type)?.storage_path ?? "") ?? "";
 
     const heroImageUrl = getAssetUrl("hero_image") || getAssetUrl("thumbnail") || "";
     const thumbnailUrl = getAssetUrl("thumbnail") || heroImageUrl;
     const tourUrl = getAssetUrl("tour_360") || heroImageUrl || thumbnailUrl;
     const floorPlanUrl = getAssetUrl("floor_plan");
+    const attachmentUrl = getAssetUrl("attachment");
 
     const scenes: TourScene[] = tourUrl
-      ? [fallbackScene(projectRow, tourUrl)]
+      ? [fallbackScene(projectRow, tourUrl, preferredLanguage)]
       : heroImageUrl
-        ? [fallbackScene(projectRow, heroImageUrl)]
+        ? [fallbackScene(projectRow, heroImageUrl, preferredLanguage)]
         : [];
 
     return {
@@ -208,6 +228,7 @@ const buildLegacyProjects = async (
         amenities: projectRow.amenities,
         price: projectRow.price,
         brochureUrl: floorPlanUrl || undefined,
+        attachmentUrl: attachmentUrl || floorPlanUrl || undefined,
       },
       category: projectRow.category,
       status: projectRow.status,
@@ -297,11 +318,19 @@ export async function loadPortalProjects(
   preferredMode: DataSourceMode,
   currentUser?: UserProfile | null
 ): Promise<PortalBootstrapData> {
-  if (preferredMode === "mock" || !currentUser || !isSupabaseConfigured || !supabase) {
+  if (preferredMode === "mock") {
     return {
       projects: currentUser ? MOCK_PROJECTS.filter((project) => project.assignedClientId === currentUser.email) : MOCK_PROJECTS,
       mode: "mock",
     };
+  }
+
+  if (!currentUser) {
+    return { projects: [], mode: "supabase" };
+  }
+
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error("Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY before launching.");
   }
 
   const client = ensureSupabase();
@@ -312,11 +341,7 @@ export async function loadPortalProjects(
   const { data: projectData, error: projectError } = await scopedProjectsQuery;
 
   if (projectError || !projectData) {
-    console.warn("Supabase project load failed, falling back to mock data.", projectError);
-    return {
-      projects: currentUser ? MOCK_PROJECTS.filter((project) => project.assignedClientId === currentUser.email) : MOCK_PROJECTS,
-      mode: "mock",
-    };
+    throw new Error(`Unable to load projects: ${projectError?.message ?? "unknown database error"}`);
   }
 
   const projectRows = projectData as ProjectRow[];
@@ -332,18 +357,17 @@ export async function loadPortalProjects(
     .in("project_id", projectIds);
 
   if (assetError || !assetData) {
-    console.warn("Supabase asset load failed.", assetError);
-    return { projects: [], mode: "supabase" };
+    throw new Error(`Unable to load project assets: ${assetError?.message ?? "unknown database error"}`);
   }
 
   return {
-    projects: await buildLegacyProjects(projectRows, assetData as ProjectAssetRow[]),
+    projects: await buildLegacyProjects(projectRows, assetData as ProjectAssetRow[], currentUser.preferredLanguage),
     mode: "supabase",
   };
 }
 
 export async function authenticatePortalUser(email: string, password: string): Promise<PortalAuthResult | null> {
-  const mockAuth = buildMockAuthResult(email, password);
+  const mockAuth = await buildMockAuthResult(email, password);
   if (mockAuth) {
     return mockAuth;
   }
@@ -419,7 +443,11 @@ export async function signOutPortalUser() {
 
 export async function savePortalUserProfile(user: UserProfile): Promise<UserProfile> {
   if (!isSupabaseConfigured || !supabase) {
-    return user;
+    if (allowMockAuth) {
+      return user;
+    }
+
+    throw new Error("Supabase is not configured. Profile changes cannot be saved.");
   }
 
   const client = ensureSupabase();
@@ -435,6 +463,58 @@ export async function savePortalUserProfile(user: UserProfile): Promise<UserProf
   }
 
   return mapProfileRow(data as ProfileRow);
+}
+
+export async function sendPortalPasswordReset(email: string) {
+  const client = ensureSupabase();
+  const recoveryUrl = `${window.location.origin}/reset-password`;
+  const { error } = await client.auth.resetPasswordForEmail(normalizeEmail(email), {
+    redirectTo: recoveryUrl,
+  });
+
+  if (error) {
+    const message = error.message.toLowerCase();
+
+    if (message.includes("redirect") || message.includes("invalid") || message.includes("not allowed")) {
+      throw new Error(
+        `Supabase rejected the recovery redirect. Add ${recoveryUrl} to Authentication > URL Configuration > Redirect URLs.`
+      );
+    }
+
+    throw new Error(`Unable to send recovery email: ${error.message}`);
+  }
+}
+
+export async function updatePortalUserPassword({
+  email,
+  currentPassword,
+  newPassword,
+  requireCurrentPassword = true,
+}: ChangePasswordInput) {
+  const client = ensureSupabase();
+
+  if (requireCurrentPassword) {
+    if (!currentPassword) {
+      throw new Error("Your current password is required.");
+    }
+
+    const { error: verifyError } = await client.auth.signInWithPassword({
+      email: normalizeEmail(email),
+      password: currentPassword,
+    });
+
+    if (verifyError) {
+      throw new Error("Your current password is incorrect.");
+    }
+  }
+
+  const { error } = await client.auth.updateUser({
+    password: newPassword,
+  });
+
+  if (error) {
+    throw new Error(error.message);
+  }
 }
 
 export async function listAdminClients(): Promise<AdminClientSummary[]> {
@@ -517,6 +597,46 @@ const uploadProjectAsset = async (projectId: string, clientUserId: string, asset
   }
 };
 
+const replaceProjectAsset = async (projectId: string, clientUserId: string, assetType: ProjectAssetType, file: File) => {
+  const client = ensureSupabase();
+  const { data: existingAssetData, error: existingAssetError } = await client
+    .from("project_assets")
+    .select("*")
+    .eq("project_id", projectId)
+    .eq("asset_type", assetType);
+
+  if (existingAssetError) {
+    throw new Error(`Unable to check existing ${assetType} files: ${existingAssetError.message}`);
+  }
+
+  await uploadProjectAsset(projectId, clientUserId, assetType, file);
+
+  const existingAssets = (existingAssetData as ProjectAssetRow[] | null) ?? [];
+  if (existingAssets.length === 0) {
+    return;
+  }
+
+  const assetIds = existingAssets.map((asset) => asset.id);
+  const storagePaths = existingAssets.map((asset) => asset.storage_path);
+
+  const { error: deleteMetadataError } = await client
+    .from("project_assets")
+    .delete()
+    .in("id", assetIds);
+
+  if (deleteMetadataError) {
+    throw new Error(`Uploaded the new ${assetType}, but failed to remove older metadata: ${deleteMetadataError.message}`);
+  }
+
+  const { error: deleteStorageError } = await client.storage
+    .from(PROJECT_ASSETS_BUCKET)
+    .remove(storagePaths);
+
+  if (deleteStorageError) {
+    throw new Error(`Uploaded the new ${assetType}, but failed to remove older files: ${deleteStorageError.message}`);
+  }
+};
+
 export async function createAdminProject(input: CreateProjectInput): Promise<void> {
   const client = ensureSupabase();
   const projectPayload = {
@@ -562,7 +682,7 @@ export async function createAdminProject(input: CreateProjectInput): Promise<voi
   const uploads = Object.entries(input.files).filter((entry): entry is [ProjectAssetType, File] => Boolean(entry[1]));
 
   for (const [assetType, file] of uploads) {
-    await uploadProjectAsset(projectId, input.clientUserId, assetType, file);
+    await replaceProjectAsset(projectId, input.clientUserId, assetType, file);
   }
 }
 
@@ -600,6 +720,6 @@ export async function updateAdminProject(projectId: string, input: CreateProject
 
   const uploads = Object.entries(input.files).filter((entry): entry is [ProjectAssetType, File] => Boolean(entry[1]));
   for (const [assetType, file] of uploads) {
-    await uploadProjectAsset(projectId, input.clientUserId, assetType, file);
+    await replaceProjectAsset(projectId, input.clientUserId, assetType, file);
   }
 }

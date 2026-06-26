@@ -44,6 +44,7 @@ export interface PropertySpecs {
   amenities: string;
   price: string;
   brochureUrl?: string;
+  attachmentUrl?: string;
 }
 
 export interface Project {

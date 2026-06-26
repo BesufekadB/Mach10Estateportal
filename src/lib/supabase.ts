@@ -6,7 +6,7 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseAnonKey);
-export const allowMockAuth = import.meta.env.DEV || import.meta.env.VITE_ENABLE_MOCK_AUTH === "true";
+export const allowMockAuth = import.meta.env.DEV;
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey, {

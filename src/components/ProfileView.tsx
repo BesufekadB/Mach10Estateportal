@@ -4,16 +4,25 @@
  */
 
 import { useState, FormEvent, useEffect } from "react";
-import { User, Bell, Shield, Coins, Globe, Save, CheckCircle, ShieldAlert } from "lucide-react";
+import { Bell, Shield, Save } from "lucide-react";
 import { useI18n } from "../lib/i18n";
 import { UserProfile } from "../types";
 
 interface ProfileViewProps {
   user: UserProfile;
-  onUpdateUser: (updatedUser: UserProfile) => void;
+  onUpdateUser: (updatedUser: UserProfile) => Promise<void>;
+  onChangePassword: (currentPassword: string, newPassword: string) => Promise<void>;
+  isPasswordRecovery?: boolean;
+  theme: "light" | "dark";
 }
 
-export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
+export default function ProfileView({
+  user,
+  onUpdateUser,
+  onChangePassword,
+  isPasswordRecovery = false,
+  theme,
+}: ProfileViewProps) {
   const { t } = useI18n();
   const [name, setName] = useState(user.name);
   const [professionalTitle, setProfessionalTitle] = useState(user.professionalTitle);
@@ -31,6 +40,9 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
   
   const [feedback, setFeedback] = useState<string | null>(null);
   const [errorFeedback, setErrorFeedback] = useState<string | null>(null);
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const fieldClass = "w-full bg-cream-low border border-outline-lucid/60 focus:border-primary px-3 py-2.5 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]";
 
   useEffect(() => {
     setName(user.name);
@@ -43,7 +55,7 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
     setMarketInsights(user.marketInsights);
   }, [user]);
 
-  const handleSaveProfile = (e: FormEvent) => {
+  const handleSaveProfile = async (e: FormEvent) => {
     e.preventDefault();
     setFeedback(null);
     setErrorFeedback(null);
@@ -60,17 +72,25 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
       marketInsights
     };
 
-    onUpdateUser(updated);
-    setFeedback(t("profilePage.saveSuccess"));
-    setTimeout(() => setFeedback(null), 4000);
+    setIsSavingProfile(true);
+
+    try {
+      await onUpdateUser(updated);
+      setFeedback(t("profilePage.saveSuccess"));
+      setTimeout(() => setFeedback(null), 4000);
+    } catch (profileError) {
+      setErrorFeedback(profileError instanceof Error ? profileError.message : t("profilePage.saveFailed"));
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
-  const handleChangePassword = (e: FormEvent) => {
+  const handleChangePassword = async (e: FormEvent) => {
     e.preventDefault();
     setFeedback(null);
     setErrorFeedback(null);
 
-    if (!currentPassword) {
+    if (!isPasswordRecovery && !currentPassword) {
       setErrorFeedback(t("profilePage.currentPasswordRequired"));
       return;
     }
@@ -85,22 +105,31 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
       return;
     }
 
-    setFeedback(t("profilePage.passwordUpdated"));
-    setCurrentPassword("");
-    setNewPassword("");
-    setConfirmPassword("");
-    setTimeout(() => setFeedback(null), 4200);
+    setIsUpdatingPassword(true);
+
+    try {
+      await onChangePassword(currentPassword, newPassword);
+      setFeedback(t("profilePage.passwordUpdated"));
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setTimeout(() => setFeedback(null), 4200);
+    } catch (passwordError) {
+      setErrorFeedback(passwordError instanceof Error ? passwordError.message : t("profilePage.passwordUpdateFailed"));
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   return (
-    <div className="max-w-6xl mx-auto space-y-10 text-left">
+    <div className="max-w-[1460px] mx-auto space-y-8 text-left">
       
       {/* Visual Title Header */}
-      <header className="border-b border-outline-lucid/30 pb-5">
-        <h2 className="font-display text-xl font-semibold tracking-wider text-onyx uppercase">
+      <header className="pb-1">
+        <h2 className="font-display text-[1.85rem] font-semibold tracking-[0.12em] text-onyx uppercase">
           {t("profilePage.title")}
         </h2>
-        <p className="text-xs text-neutral-stone mt-1">{t("profilePage.subtitle")}</p>
+        <p className="text-sm text-neutral-stone mt-2 max-w-xl">{t("profilePage.subtitle")}</p>
       </header>
 
       {/* Dynamic Action Alerts */}
@@ -115,20 +144,28 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
         </div>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-12 gap-8 items-start">
+      <div
+        className="relative rounded-[1.4rem] border border-outline-lucid/75 bg-background-luxury p-6 md:p-8 overflow-hidden transition-colors duration-300"
+        style={{
+          backgroundImage:
+            theme === "dark"
+              ? "linear-gradient(90deg, rgba(10,13,17,0.9) 0%, rgba(10,13,17,0.72) 27%, rgba(10,13,17,0.95) 58%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuBDq1pgb7itlk2Bz9OfgHZyq8ttV149xAqSBJ899rckjHl47Tc9cXG-PwbVK4x_9YHwCn1x-Soml4jeOzWX8EmCJgxwGIHQ3kuYNiskuDbez6hholwJzkMDTYUUXfwx7gVkRqL0ecMptJEcGrKSRtTxQIKlFwV5J8_E2vW2k_IrsD8JCYwfdKwLJvzfnwQcnDa6aqMEROIRQbcfHrrLM-8mIIvE47_tn-vT91q8gsPftqUSbRq8wg1M7llhIrGUCs7Vrb7PQRP0jzI')"
+              : "linear-gradient(90deg, rgba(245,241,234,0.92) 0%, rgba(245,241,234,0.74) 27%, rgba(245,241,234,0.95) 58%), url('https://lh3.googleusercontent.com/aida-public/AB6AXuBDq1pgb7itlk2Bz9OfgHZyq8ttV149xAqSBJ899rckjHl47Tc9cXG-PwbVK4x_9YHwCn1x-Soml4jeOzWX8EmCJgxwGIHQ3kuYNiskuDbez6hholwJzkMDTYUUXfwx7gVkRqL0ecMptJEcGrKSRtTxQIKlFwV5J8_E2vW2k_IrsD8JCYwfdKwLJvzfnwQcnDa6aqMEROIRQbcfHrrLM-8mIIvE47_tn-vT91q8gsPftqUSbRq8wg1M7llhIrGUCs7Vrb7PQRP0jzI')",
+          backgroundSize: "cover",
+          backgroundPosition: "left center",
+        }}
+      >
+      <div className="grid grid-cols-1 md:grid-cols-12 gap-6 items-start">
         
         {/* Left Side: General Profile Card Info & Form (7 Columns) */}
-        <form onSubmit={handleSaveProfile} className="md:col-span-7 bg-white dark:bg-card-bg border border-outline-lucid/50 dark:border-outline-lucid/15 p-6 md:p-8 space-y-6 rounded-[var(--radius-ui)] transition-colors duration-300">
-          <div className="flex items-center gap-4 border-b border-stone-50 pb-5">
-            <img 
-              src={user.avatarUrl} 
-              alt={user.name} 
-              className="w-16 h-16 rounded-full object-cover border-2 border-primary"
-              referrerPolicy="no-referrer"
-            />
+        <form onSubmit={handleSaveProfile} className="md:col-span-7 bg-card-bg border border-outline-lucid/70 p-6 md:p-7 space-y-6 rounded-[1rem] transition-colors duration-300 backdrop-blur-sm">
+          <div className="flex items-center gap-4 border-b border-outline-lucid/40 pb-5">
+            <div className="h-16 w-16 rounded-full border border-primary text-[1.65rem] font-display text-primary flex items-center justify-center">
+              {user.name.slice(0, 2).toUpperCase()}
+            </div>
             <div>
-              <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-onyx">{user.name}</h3>
-              <p className="text-[10px] text-[#775a19] uppercase tracking-widest font-semibold">{user.professionalTitle}</p>
+              <h3 className="font-display text-sm font-semibold uppercase tracking-[0.15em] text-onyx">{user.name}</h3>
+              <p className="text-[10px] text-primary uppercase tracking-[0.2em] font-semibold">{user.professionalTitle}</p>
               <p className="text-[10px] text-neutral-stone mt-1 font-mono">{user.email}</p>
             </div>
           </div>
@@ -146,7 +183,7 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
                 required
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="w-full bg-[#faf9f9] dark:bg-cream-low border border-stone-200 dark:border-outline-lucid/15 focus:border-primary px-3 py-2.5 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                className={fieldClass}
               />
             </div>
 
@@ -158,7 +195,7 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
                 required
                 value={professionalTitle}
                 onChange={(e) => setProfessionalTitle(e.target.value)}
-                className="w-full bg-[#faf9f9] dark:bg-cream-low border border-stone-200 dark:border-outline-lucid/15 focus:border-primary px-3 py-2.5 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                className={fieldClass}
               />
             </div>
 
@@ -168,7 +205,7 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
                 id="pref-lang"
                 value={preferredLanguage}
                 onChange={(e) => setPreferredLanguage(e.target.value)}
-                className="w-full bg-[#faf9f9] dark:bg-cream-low border border-stone-200 dark:border-outline-lucid/15 focus:border-primary px-3 py-2.5 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                className={fieldClass}
               >
                 <option value="English (International)">{t("profilePage.english")}</option>
                 <option value="Amharic">{t("profilePage.amharic")}</option>
@@ -183,7 +220,7 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
                 required
                 value={country}
                 onChange={(e) => setCountry(e.target.value)}
-                className="w-full bg-[#faf9f9] dark:bg-cream-low border border-stone-200 dark:border-outline-lucid/15 focus:border-primary px-3 py-2.5 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                className={fieldClass}
               />
             </div>
 
@@ -195,7 +232,7 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
                 required
                 value={city}
                 onChange={(e) => setCity(e.target.value)}
-                className="w-full bg-[#faf9f9] dark:bg-cream-low border border-stone-200 dark:border-outline-lucid/15 focus:border-primary px-3 py-2.5 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                className={fieldClass}
               />
             </div>
 
@@ -205,7 +242,7 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
                 id="pref-currency"
                 value={currency}
                 onChange={(e) => setCurrency(e.target.value)}
-                className="w-full bg-[#faf9f9] dark:bg-cream-low border border-stone-200 dark:border-outline-lucid/15 focus:border-primary px-3 py-2.5 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                className={fieldClass}
               >
                 <option>USD ($)</option>
                 <option>EUR (€)</option>
@@ -214,12 +251,12 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
             </div>
           </div>
 
-          <hr className="border-stone-100 dark:border-outline-lucid/10" />
+          <hr className="border-outline-lucid/40" />
 
           {/* Alert Toggles */}
           <div className="space-y-3">
             <h5 className="font-display text-[10px] uppercase tracking-[0.2em] text-[#775a19] font-bold flex items-center gap-1.5 mb-1">
-              <Bell className="w-3.5 h-3.5" /> Notification conduits
+              <Bell className="w-3.5 h-3.5" /> {t("profilePage.notifications")}
             </h5>
             
             <label className="flex items-start gap-3 cursor-pointer group">
@@ -250,11 +287,12 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
           </div>
 
           {/* Action Trigger button */}
-              <button
+          <button
             type="submit"
-            className="w-full bg-onyx hover:bg-neutral-stone text-white text-xs py-3.5 font-sans uppercase tracking-widest transition-colors flex items-center justify-center gap-1.5 rounded-[var(--radius-ui-sm)]"
+            disabled={isSavingProfile}
+            className="w-full bg-transparent border border-primary/80 hover:bg-primary/10 text-primary dark:text-[#f0e6d3] text-xs py-3.5 font-sans uppercase tracking-[0.24em] transition-colors flex items-center justify-center gap-1.5 rounded-[var(--radius-ui-sm)]"
           >
-            <Save className="w-4 h-4" /> {t("profilePage.savePreferences")}
+            <Save className="w-4 h-4" /> {isSavingProfile ? t("profilePage.savingPreferences") : t("profilePage.savePreferences")}
           </button>
         </form>
 
@@ -262,74 +300,79 @@ export default function ProfileView({ user, onUpdateUser }: ProfileViewProps) {
         <div className="md:col-span-5 space-y-6">
           
           {/* Quick Metrics stats */}
-          <div className="bg-[#775a19]/5 border border-primary/20 p-5 rounded-[var(--radius-ui)] text-left">
+          <div className="bg-card-bg border border-outline-lucid/70 p-5 rounded-[1rem] text-left relative overflow-hidden transition-colors duration-300">
             <h4 className="font-display text-[10px] uppercase tracking-[0.25em] text-[#775a19] font-bold">{t("profilePage.investedCapital")}</h4>
             <div className="mt-2 flex items-baseline gap-2">
               <span className="text-2xl font-semibold font-display text-onyx">{user.totalAssets}</span>
-              <span className="text-[9px] text-neutral-stone uppercase font-mono tracking-widest">Aggregate Val</span>
+              <span className="text-[9px] text-neutral-stone uppercase font-mono tracking-widest">{t("profilePage.aggregateValue")}</span>
             </div>
             <p className="text-[10px] text-neutral-stone leading-relaxed mt-2 border-t border-[#775a19]/10 pt-2 font-light">
               {t("profilePage.capitalLead", { count: user.activeBuildCount })}
             </p>
+            <div className="absolute right-0 bottom-0 h-28 w-36 opacity-50 bg-[radial-gradient(circle_at_bottom_right,rgba(202,161,95,0.28),transparent_42%)]" />
           </div>
 
           {/* Change password section */}
-          <form onSubmit={handleChangePassword} className="bg-white dark:bg-card-bg border border-outline-lucid/50 dark:border-outline-lucid/15 p-6 space-y-4 rounded-[var(--radius-ui)] text-left transition-colors duration-300">
+          <form onSubmit={handleChangePassword} className="bg-card-bg border border-outline-lucid/70 p-6 space-y-4 rounded-[1rem] text-left transition-colors duration-300">
             <h4 className="font-display text-[10px] uppercase tracking-[0.2em] text-[#7c5800] dark:text-[#c5a059] font-bold flex items-center gap-1.5">
               <Shield className="w-3.5 h-3.5" /> {t("profilePage.securityCredentials")}
             </h4>
             <p className="text-[10px] text-neutral-stone leading-relaxed font-light">
-              {t("profilePage.securityLead")}
+              {isPasswordRecovery ? t("profilePage.recoveryLead") : t("profilePage.securityLead")}
             </p>
 
             <div className="space-y-3">
-              <div className="space-y-1">
-                <label className="text-[10px] text-neutral-stone uppercase tracking-widest block" htmlFor="curr-pwd">Old Code</label>
-                <input
-                  id="curr-pwd"
-                  type="password"
-                  placeholder="••••••••"
-                  value={currentPassword}
-                  onChange={(e) => setCurrentPassword(e.target.value)}
-                  className="w-full bg-[#faf9f9] dark:bg-cream-low border border-stone-200 dark:border-outline-lucid/15 focus:border-primary px-3 py-2 text-xs outline-none text-onyx"
-                />
-              </div>
+              {isPasswordRecovery ? null : (
+                <div className="space-y-1">
+                  <label className="text-[10px] text-neutral-stone uppercase tracking-widest block" htmlFor="curr-pwd">{t("profilePage.oldCode")}</label>
+                  <input
+                    id="curr-pwd"
+                    type="password"
+                    placeholder="••••••••"
+                    value={currentPassword}
+                    onChange={(e) => setCurrentPassword(e.target.value)}
+                    className="w-full bg-cream-low border border-outline-lucid/60 focus:border-primary px-3 py-2 text-xs outline-none text-onyx"
+                  />
+                </div>
+              )}
 
               <div className="space-y-1">
-                <label className="text-[10px] text-neutral-stone uppercase tracking-widest block" htmlFor="new-pwd">New Code</label>
+                <label className="text-[10px] text-neutral-stone uppercase tracking-widest block" htmlFor="new-pwd">{t("profilePage.newCode")}</label>
                 <input
                   id="new-pwd"
                   type="password"
                   placeholder={t("profilePage.minFiveChars")}
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  className="w-full bg-[#faf9f9] dark:bg-cream-low border border-stone-200 dark:border-outline-lucid/15 focus:border-primary px-3 py-2 text-xs outline-none text-onyx"
+                  className="w-full bg-cream-low border border-outline-lucid/60 focus:border-primary px-3 py-2 text-xs outline-none text-onyx"
                 />
               </div>
 
               <div className="space-y-1">
-                <label className="text-[10px] text-neutral-stone uppercase tracking-widest block" htmlFor="conf-pwd">Confirm New Code</label>
+                <label className="text-[10px] text-neutral-stone uppercase tracking-widest block" htmlFor="conf-pwd">{t("profilePage.confirmNewCode")}</label>
                 <input
                   id="conf-pwd"
                   type="password"
                   placeholder="••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full bg-[#faf9f9] dark:bg-cream-low border border-stone-200 dark:border-outline-lucid/15 focus:border-primary px-3 py-2 text-xs outline-none text-onyx"
+                  className="w-full bg-cream-low border border-outline-lucid/60 focus:border-primary px-3 py-2 text-xs outline-none text-onyx"
                 />
               </div>
             </div>
 
             <button
               type="submit"
-              className="w-full bg-[#775a19] hover:bg-[#c5a059] text-white text-[10px] font-sans py-3 uppercase tracking-widest transition-colors font-medium text-center"
+              disabled={isUpdatingPassword}
+              className="w-full bg-primary hover:brightness-110 text-[#15110b] text-[10px] font-sans py-3 uppercase tracking-[0.24em] transition-colors font-semibold text-center"
             >
-              {t("profilePage.updateSecurity")}
+              {isUpdatingPassword ? t("profilePage.updatingSecurity") : t("profilePage.updateSecurity")}
             </button>
           </form>
 
         </div>
 
+      </div>
       </div>
 
     </div>

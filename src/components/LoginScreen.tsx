@@ -6,6 +6,7 @@
 import { useState, FormEvent } from "react";
 import { Lock, Eye, EyeOff, ArrowRight, Sun, Moon, Layers, Mail } from "lucide-react";
 import { useI18n } from "../lib/i18n";
+import { sendPortalPasswordReset } from "../lib/portalData";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
 interface LoginScreenProps {
@@ -20,6 +21,7 @@ interface LoginScreenProps {
   onToggleTheme: () => void;
   authMode: "supabase" | "mock";
   portalVariant?: "client" | "admin";
+  systemError?: string | null;
 }
 
 export default function LoginScreen({
@@ -29,21 +31,26 @@ export default function LoginScreen({
   onToggleTheme,
   authMode,
   portalVariant = "client",
+  systemError = null,
 }: LoginScreenProps) {
   const { t } = useI18n();
   const isAdminPortal = portalVariant === "admin";
+  const backgroundOverlay =
+    theme === "dark"
+      ? "linear-gradient(90deg, rgba(9,11,14,0.86) 0%, rgba(9,11,14,0.52) 34%, rgba(9,11,14,0.9) 100%)"
+      : "linear-gradient(90deg, rgba(245,241,234,0.84) 0%, rgba(245,241,234,0.58) 34%, rgba(245,241,234,0.9) 100%)";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Forgot password flow states
+
   const [showForgotModal, setShowForgotModal] = useState(false);
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotError, setForgotError] = useState<string | null>(null);
+  const [forgotSubmitting, setForgotSubmitting] = useState(false);
 
-  // Request Access trigger states
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [signUpEmail, setSignUpEmail] = useState("");
   const [signUpPassword, setSignUpPassword] = useState("");
@@ -52,6 +59,10 @@ export default function LoginScreen({
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [signUpError, setSignUpError] = useState<string | null>(null);
   const [signUpSuccessMessage, setSignUpSuccessMessage] = useState<string | null>(null);
+  const panelClass = "bg-card-bg/92 p-8 md:p-10 border border-outline-lucid/55 shadow-[0px_24px_60px_rgba(0,0,0,0.18)] rounded-[1rem] transition-colors duration-300 backdrop-blur-md";
+  const inputClass = "w-full bg-cream-low border border-outline-lucid/70 focus:border-primary px-4 py-3 text-sm outline-none text-onyx transition-colors placeholder-neutral-stone/50 font-sans rounded-[var(--radius-ui-sm)]";
+  const modalClass = "bg-card-bg border border-outline-lucid/70 rounded-[var(--radius-ui)] shadow-2xl p-8 w-full relative transition-colors duration-300";
+  const subtleButtonClass = "text-[10px] uppercase font-semibold text-neutral-stone px-4 py-2 hover:bg-cream-low transition-colors rounded-[var(--radius-ui-sm)]";
 
   // Form handle
   const handleLogin = async (e: FormEvent) => {
@@ -61,22 +72,34 @@ export default function LoginScreen({
 
     try {
       await onLoginSuccess(email, password);
-    } catch {
-      setError(t("auth.invalidCredentials"));
+    } catch (loginError) {
+      setError(loginError instanceof Error ? loginError.message : t("auth.invalidCredentials"));
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleForgotSubmit = (e: FormEvent) => {
+  const handleForgotSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!forgotEmail) return;
-    setForgotSuccess(true);
-    setTimeout(() => {
-      setForgotSuccess(false);
-      setShowForgotModal(false);
-      setForgotEmail("");
-    }, 4000);
+
+    setForgotError(null);
+    setForgotSubmitting(true);
+
+    try {
+      await sendPortalPasswordReset(forgotEmail);
+      setForgotSuccess(true);
+      setTimeout(() => {
+        setForgotSuccess(false);
+        setShowForgotModal(false);
+        setForgotEmail("");
+        setForgotError(null);
+      }, 4000);
+    } catch (resetError) {
+      setForgotError(resetError instanceof Error ? resetError.message : t("auth.resetFailed"));
+    } finally {
+      setForgotSubmitting(false);
+    }
   };
 
   const handleRequestAccess = async (e: FormEvent) => {
@@ -105,6 +128,7 @@ export default function LoginScreen({
           setSignUpPhoneNumber("");
           setSignUpCompany("");
           setSignUpSuccessMessage(null);
+          setSignUpError(null);
         }, 2000);
       }
     } catch (signupError) {
@@ -134,22 +158,23 @@ export default function LoginScreen({
   };
 
   return (
-    <div className="w-full flex-1 min-h-[calc(100vh-2.5rem)] flex flex-col justify-center items-center px-4 relative bg-background-luxury transition-colors duration-300">
+    <div className="w-full flex-1 min-h-[calc(100vh-2.5rem)] flex flex-col justify-center items-center px-4 relative bg-background-luxury transition-colors duration-300 overflow-hidden">
       
       {/* Absolute high-key architectural background vignette */}
       <div 
-        className="absolute inset-0 opacity-10 dark:opacity-20 pointer-events-none bg-cover bg-center mix-blend-soft-light"
+        className="absolute inset-0 opacity-25 pointer-events-none bg-cover bg-center"
         style={{
           backgroundImage: `url('https://lh3.googleusercontent.com/aida-public/AB6AXuBDq1pgb7itlk2Bz9OfgHZyq8ttV149xAqSBJ899rckjHl47Tc9cXG-PwbVK4x_9YHwCn1x-Soml4jeOzWX8EmCJgxwGIHQ3kuYNiskuDbez6hholwJzkMDTYUUXfwx7gVkRqL0ecMptJEcGrKSRtTxQIKlFwV5J8_E2vW2k_IrsD8JCYwfdKwLJvzfnwQcnDa6aqMEROIRQbcfHrrLM-8mIIvE47_tn-vT91q8gsPftqUSbRq8wg1M7llhIrGUCs7Vrb7PQRP0jzI')`,
         }}
       />
+      <div className="absolute inset-0 pointer-events-none" style={{ backgroundImage: backgroundOverlay }} />
 
       {/* Absolute theme toggle on the top right of light/dark */}
       <div className="absolute top-6 right-6 md:top-8 md:right-16 z-50">
         <button
           onClick={onToggleTheme}
           type="button"
-          className="p-2.5 text-neutral-stone hover:text-onyx dark:text-[#9e9380] dark:hover:text-onyx bg-white dark:bg-card-bg border border-outline-lucid/40 dark:border-outline-lucid/10 rounded-full hover:bg-stone-50 dark:hover:bg-cream-low transition-all shadow-xs cursor-pointer focus:outline-none"
+          className="h-9 w-9 text-neutral-stone hover:text-onyx dark:hover:text-[#f4efe6] bg-white/85 dark:bg-[#11161c] border border-outline-lucid/70 rounded-xl hover:bg-stone-50 dark:hover:bg-[#181d24] transition-all cursor-pointer focus:outline-none flex items-center justify-center"
           title={theme === "dark" ? t("topnav.switchToLight") : t("topnav.switchToDark")}
           aria-label={t("topnav.toggleTheme")}
         >
@@ -171,26 +196,35 @@ export default function LoginScreen({
               <h1 className="font-display text-2xl font-bold tracking-[0.24em] text-[#775a19]">
                 Estate Portal
               </h1>
-              <p className="text-[9px] tracking-[0.35em] text-neutral-stone uppercase">By Mach10</p>
               <p className="text-[9px] tracking-[0.35em] text-neutral-stone uppercase">{t("common.byMach10")}</p>
             </div>
           </div>
-          <p className="font-sans text-[10px] uppercase tracking-[0.28em] text-neutral-stone">
+          <p className="font-sans text-[10px] uppercase tracking-[0.28em] text-stone-variant dark:text-neutral-stone">
             {isAdminPortal ? t("auth.adminAccess") : t("auth.secureClientAccess")}
           </p>
         </header>
 
         {/* Content Box */}
-        <section className="bg-white/95 dark:bg-card-bg p-8 md:p-10 border border-outline-lucid dark:border-outline-lucid/15 shadow-[0px_20px_40px_rgba(0,0,0,0.08)] dark:shadow-[0px_20px_40px_rgba(0,0,0,0.35)] rounded-[var(--radius-ui)] transition-colors duration-300">
+        <section className={panelClass}>
           
           <form onSubmit={handleLogin} className="space-y-8">
             
             {/* Display validation error */}
             {error && (
-              <div className="bg-red-50 border-l border-red-800 p-4 text-xs text-red-950 font-sans leading-relaxed">
+              <div className="bg-red-950/25 border border-red-800/35 p-4 text-xs text-red-200 font-sans leading-relaxed rounded-[var(--radius-ui-sm)]">
                 {error}
               </div>
             )}
+            {systemError ? (
+              <div className="bg-amber-950/20 border border-amber-700/35 p-4 text-xs text-amber-100 font-sans leading-relaxed rounded-[var(--radius-ui-sm)]">
+                {systemError}
+              </div>
+            ) : null}
+            {authMode === "mock" ? (
+              <div className="bg-sky-950/20 border border-sky-700/35 p-4 text-xs text-sky-100 font-sans leading-relaxed rounded-[var(--radius-ui-sm)]">
+                {t("auth.devModeNotice")}
+              </div>
+            ) : null}
 
             {/* Email field */}
             <div className="space-y-2">
@@ -204,7 +238,7 @@ export default function LoginScreen({
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder={isAdminPortal ? t("auth.adminPlaceholder") : t("auth.clientPlaceholder")}
-                className="w-full bg-stone-50/80 dark:bg-cream-low border border-outline-lucid/60 dark:border-outline-lucid/15 focus:border-primary px-4 py-3 text-sm outline-none text-onyx transition-colors placeholder-neutral-stone/40 font-sans rounded-[var(--radius-ui-sm)]"
+                className={inputClass}
               />
             </div>
 
@@ -231,7 +265,7 @@ export default function LoginScreen({
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  className="w-full bg-stone-50/80 dark:bg-cream-low border border-outline-lucid/60 dark:border-outline-lucid/15 focus:border-primary px-4 py-3 pr-10 text-sm outline-none text-onyx transition-colors placeholder-neutral-stone/40 font-sans rounded-[var(--radius-ui-sm)]"
+                  className={`${inputClass} pr-10`}
                 />
                 
                 <button
@@ -248,7 +282,7 @@ export default function LoginScreen({
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full bg-onyx hover:bg-neutral-stone text-white font-sans text-xs py-4 uppercase tracking-[0.2em] font-medium transition-all duration-300 shadow-sm hover:shadow-md flex items-center justify-center gap-2 rounded-[var(--radius-ui-sm)]"
+              className="w-full bg-primary hover:brightness-110 text-[#15110b] font-sans text-xs py-3.5 uppercase tracking-[0.24em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 rounded-[var(--radius-ui-sm)]"
             >
               {isSubmitting ? t("auth.signingIn") : isAdminPortal ? t("auth.adminSignIn") : t("auth.signIn")} <ArrowRight className="w-3.5 h-3.5" />
             </button>
@@ -261,7 +295,7 @@ export default function LoginScreen({
                 {t("auth.newMember")}{" "}
                 <button 
                   onClick={() => setShowRequestModal(true)}
-                  className="text-onyx font-bold hover:underline ml-1"
+                  className="text-primary font-bold hover:underline ml-1"
                 >
                   {t("auth.signUp")}
                 </button>
@@ -277,13 +311,13 @@ export default function LoginScreen({
         </section>
 
         {/* Footnote Encrypt Badge */}
-        <div className="mt-6 flex justify-center items-center gap-2 text-neutral-stone/40 text-[10px] uppercase tracking-widest font-sans">
+        <div className="mt-6 flex justify-center items-center gap-2 text-stone-variant/75 dark:text-neutral-stone/55 text-[10px] uppercase tracking-widest font-sans">
           <Lock className="w-3 h-3" />
           <span>{t("auth.encryptedGateway")}</span>
         </div>
 
         {/* Footer legalities */}
-            <footer className="mt-16 text-center text-[10px] text-neutral-stone/60 uppercase tracking-[0.12em] font-sans">
+            <footer className="mt-16 text-center text-[10px] text-stone-variant/80 dark:text-neutral-stone/60 uppercase tracking-[0.12em] font-sans">
           © {new Date().getFullYear()} {t("auth.allRightsReserved")}
         </footer>
       </main>
@@ -291,7 +325,7 @@ export default function LoginScreen({
       {/* Forgot Password Modal Module */}
       {showForgotModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-card-bg border border-outline-lucid dark:border-outline-lucid/15 rounded-[var(--radius-ui)] shadow-2xl p-8 max-w-sm w-full relative transition-colors duration-300">
+          <div className={`${modalClass} max-w-sm`}>
             <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-onyx mb-2">
               {t("auth.recoverCredentials")}
             </h3>
@@ -305,27 +339,38 @@ export default function LoginScreen({
               </div>
             ) : (
               <form onSubmit={handleForgotSubmit} className="space-y-4">
+                {forgotError ? (
+                  <div className="bg-red-50 border border-red-200 text-red-900 text-xs px-4 py-3 rounded-[var(--radius-ui-sm)] space-y-2">
+                    <p>{forgotError}</p>
+                    <p className="text-red-800/80">{t("auth.resetRedirectHelp")}</p>
+                  </div>
+                ) : null}
                 <input
                   type="email"
                   required
                   placeholder={t("auth.clientPlaceholder")}
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
-                  className="w-full bg-stone-50/80 dark:bg-cream-low border border-outline-lucid/60 dark:border-outline-lucid/15 focus:border-primary px-4 py-3 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                  className={`${inputClass} text-xs`}
                 />
                 <div className="flex justify-end gap-3 pt-2">
                   <button
                     type="button"
-                    onClick={() => setShowForgotModal(false)}
-                    className="text-[10px] uppercase font-semibold text-neutral-stone px-4 py-2 hover:bg-stone-100 dark:hover:bg-cream-low transition-colors rounded-[var(--radius-ui-sm)]"
+                    onClick={() => {
+                      setShowForgotModal(false);
+                      setForgotError(null);
+                      setForgotSuccess(false);
+                    }}
+                    className={subtleButtonClass}
                   >
                     {t("common.cancel")}
                   </button>
                   <button
                     type="submit"
+                    disabled={forgotSubmitting}
                     className="bg-primary text-white text-[10px] uppercase font-medium tracking-widest px-6 py-2 transition-transform hover:scale-102 rounded-[var(--radius-ui-sm)]"
                   >
-                    {t("auth.sendInstructions")}
+                    {forgotSubmitting ? t("auth.sendingInstructions") : t("auth.sendInstructions")}
                   </button>
                 </div>
               </form>
@@ -337,7 +382,7 @@ export default function LoginScreen({
       {/* Request Access Registry Modal */}
       {showRequestModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-card-bg border border-outline-lucid dark:border-outline-lucid/15 rounded-[var(--radius-ui)] shadow-2xl p-8 max-w-md w-full relative transition-colors duration-300">
+          <div className={`${modalClass} max-w-md`}>
             <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-onyx mb-2">
               {t("auth.signUpTitle")}
             </h3>
@@ -365,7 +410,7 @@ export default function LoginScreen({
                     placeholder="you@company.com"
                     value={signUpEmail}
                     onChange={(e) => setSignUpEmail(e.target.value)}
-                    className="w-full bg-stone-50/80 dark:bg-cream-low border border-outline-lucid/60 dark:border-outline-lucid/15 focus:border-primary px-4 py-3 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                    className={`${inputClass} text-xs`}
                   />
                 </div>
                 <div className="space-y-1">
@@ -376,7 +421,7 @@ export default function LoginScreen({
                     placeholder={t("auth.passwordPlaceholder")}
                     value={signUpPassword}
                     onChange={(e) => setSignUpPassword(e.target.value)}
-                    className="w-full bg-stone-50/80 dark:bg-cream-low border border-outline-lucid/60 dark:border-outline-lucid/15 focus:border-primary px-4 py-3 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                    className={`${inputClass} text-xs`}
                   />
                 </div>
                 <div className="space-y-1">
@@ -387,7 +432,7 @@ export default function LoginScreen({
                     placeholder="+251912345678"
                     value={signUpPhoneNumber}
                     onChange={(e) => setSignUpPhoneNumber(e.target.value)}
-                    className="w-full bg-stone-50/80 dark:bg-cream-low border border-outline-lucid/60 dark:border-outline-lucid/15 focus:border-primary px-4 py-3 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                    className={`${inputClass} text-xs`}
                   />
                   <p className="text-[10px] text-neutral-stone">{t("auth.phoneHint")}</p>
                 </div>
@@ -399,14 +444,19 @@ export default function LoginScreen({
                     placeholder={t("auth.companyPlaceholder")}
                     value={signUpCompany}
                     onChange={(e) => setSignUpCompany(e.target.value)}
-                    className="w-full bg-stone-50/80 dark:bg-cream-low border border-outline-lucid/60 dark:border-outline-lucid/15 focus:border-primary px-4 py-3 text-xs outline-none text-onyx rounded-[var(--radius-ui-sm)]"
+                    className={`${inputClass} text-xs`}
                   />
                 </div>
                 <div className="flex justify-end gap-3 pt-4">
                   <button
                     type="button"
-                    onClick={() => setShowRequestModal(false)}
-                    className="text-[10px] uppercase font-semibold text-neutral-stone px-4 py-2 hover:bg-stone-100 transition-colors rounded-[var(--radius-ui-sm)]"
+                    onClick={() => {
+                      setShowRequestModal(false);
+                      setSignUpError(null);
+                      setSignUpSuccessMessage(null);
+                      setRequestSubmitted(false);
+                    }}
+                    className={subtleButtonClass}
                   >
                     {t("auth.close")}
                   </button>
@@ -420,7 +470,7 @@ export default function LoginScreen({
                 <button
                   type="button"
                   onClick={handleGoogleSignUp}
-                  className="w-full flex items-center justify-center gap-2 border border-outline-lucid/40 px-4 py-3 text-[10px] uppercase tracking-widest text-onyx rounded-[var(--radius-ui-sm)]"
+                  className="w-full flex items-center justify-center gap-2 border border-outline-lucid/55 bg-cream-low px-4 py-3 text-[10px] uppercase tracking-widest text-onyx rounded-[var(--radius-ui-sm)] transition-colors hover:border-primary hover:bg-primary/10"
                 >
                   <Mail className="w-4 h-4" />
                   {t("auth.googleSignup")}
