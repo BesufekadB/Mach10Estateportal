@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { ArrowRight, KeyRound, Layers, Moon, Sun } from "lucide-react";
 import { useI18n } from "../lib/i18n";
 
@@ -12,6 +12,8 @@ interface PasswordResetScreenProps {
   onToggleTheme: () => void;
   onSubmit: (newPassword: string, confirmPassword: string) => Promise<void>;
   onBackToLogin: () => void;
+  recoveryEmail?: string | null;
+  isSessionReady?: boolean;
 }
 
 export default function PasswordResetScreen({
@@ -19,6 +21,8 @@ export default function PasswordResetScreen({
   onToggleTheme,
   onSubmit,
   onBackToLogin,
+  recoveryEmail = null,
+  isSessionReady = true,
 }: PasswordResetScreenProps) {
   const { t } = useI18n();
   const backgroundOverlay =
@@ -34,10 +38,23 @@ export default function PasswordResetScreen({
 
   const inputClass = "w-full bg-cream-low border border-outline-lucid/70 focus:border-primary px-4 py-3 text-sm outline-none text-onyx transition-colors placeholder-neutral-stone/50 font-sans rounded-[var(--radius-ui-sm)]";
 
+  useEffect(() => {
+    if (!isSessionReady) {
+      setError(t("auth.recoverySessionMissing"));
+    } else {
+      setError(null);
+    }
+  }, [isSessionReady, t]);
+
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
     setError(null);
     setSuccess(null);
+
+    if (!isSessionReady) {
+      setError(t("auth.recoverySessionMissing"));
+      return;
+    }
 
     if (newPassword !== confirmPassword) {
       setError(t("profilePage.passwordMismatch"));
@@ -117,6 +134,11 @@ export default function PasswordResetScreen({
               <p className="mt-2 text-sm text-neutral-stone leading-relaxed">
                 {t("auth.resetPasswordLead")}
               </p>
+              {recoveryEmail ? (
+                <p className="mt-2 text-xs uppercase tracking-[0.18em] text-primary">
+                  {recoveryEmail}
+                </p>
+              ) : null}
             </div>
           </div>
 

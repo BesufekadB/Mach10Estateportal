@@ -485,6 +485,17 @@ export async function sendPortalPasswordReset(email: string) {
   }
 }
 
+export async function getAuthenticatedEmail(): Promise<string | null> {
+  const client = ensureSupabase();
+  const { data, error } = await client.auth.getUser();
+
+  if (error || !data.user?.email) {
+    return null;
+  }
+
+  return data.user.email;
+}
+
 export async function updatePortalUserPassword({
   email,
   currentPassword,
@@ -492,6 +503,10 @@ export async function updatePortalUserPassword({
   requireCurrentPassword = true,
 }: ChangePasswordInput) {
   const client = ensureSupabase();
+
+  if (!email) {
+    throw new Error("No authenticated recovery session was found. Please use the email reset link again.");
+  }
 
   if (requireCurrentPassword) {
     if (!currentPassword) {

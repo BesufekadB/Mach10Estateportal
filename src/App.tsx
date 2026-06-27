@@ -12,6 +12,7 @@ import { getLocaleFromLanguage, I18nProvider, useI18n } from "./lib/i18n";
 import {
   authenticatePortalUser,
   subscribeToPortalAuthChanges,
+  getAuthenticatedEmail,
   getCurrentPortalUser,
   loadPortalProjects,
   registerPortalUser,
@@ -55,6 +56,8 @@ function AppShell({
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(
     isRecoveryPath() || window.location.hash.includes("type=recovery") || new URLSearchParams(window.location.search).get("recovery") === "1"
   );
+  const [recoveryEmail, setRecoveryEmail] = useState<string | null>(null);
+  const [isRecoverySessionReady, setIsRecoverySessionReady] = useState(false);
 
   const clientProjects = useMemo(() => {
     if (!currentUser) return [];
@@ -198,12 +201,39 @@ function AppShell({
     const unsubscribe = subscribeToPortalAuthChanges((event) => {
       if (event === "PASSWORD_RECOVERY") {
         setIsPasswordRecovery(true);
+        setIsRecoverySessionReady(true);
         window.history.replaceState({}, "", "/reset-password");
       }
     });
 
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    const hydrateRecoverySession = async () => {
+      if (!isPasswordRecovery || !isSupabaseConfigured) {
+        if (active) {
+          setRecoveryEmail(null);
+          setIsRecoverySessionReady(false);
+        }
+        return;
+      }
+
+      const email = await getAuthenticatedEmail().catch(() => null);
+      if (!active) return;
+
+      setRecoveryEmail(email);
+      setIsRecoverySessionReady(Boolean(email));
+    };
+
+    void hydrateRecoverySession();
+
+    return () => {
+      active = false;
+    };
+  }, [isPasswordRecovery]);
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" || theme === null ? "light" : "dark";
@@ -244,17 +274,27 @@ function AppShell({
     });
 
     if (result.status === "signed_in" && result.user) {
-      const projectResult = await loadPortalProjects("supabase", result.user);
       setCurrentUser(result.user);
       onPreferredLanguageChange(result.user.preferredLanguage as "English (International)" | "Amharic");
       setDataMode("supabase");
-      setProjects(projectResult.projects);
+      setProjects([]);
       setBootstrapError(null);
       localStorage.setItem("aurelian_user_session", JSON.stringify(result.user));
       localStorage.setItem("aurelian_data_mode", "supabase");
       setActiveTab("dashboard");
       setSelectedProject(null);
       navigateTo("client");
+
+      try {
+        const projectResult = await loadPortalProjects("supabase", result.user);
+        setProjects(projectResult.projects);
+      } catch (error) {
+        setAppError(
+          error instanceof Error
+            ? error.message
+            : "Your account was created, but project data could not be loaded yet."
+        );
+      }
     }
 
     return result;
@@ -385,9 +425,13 @@ function AppShell({
                   requireCurrentPassword: false,
                 });
                 setIsPasswordRecovery(false);
+                setRecoveryEmail(null);
+                setIsRecoverySessionReady(false);
                 window.history.replaceState({}, "", "/");
               }}
               onBackToLogin={navigateToSignIn}
+              recoveryEmail={recoveryEmail}
+              isSessionReady={isRecoverySessionReady}
             />
           </div>
         </div>
@@ -425,12 +469,16 @@ function AppShell({
                 requireCurrentPassword: false,
               });
               setIsPasswordRecovery(false);
+              setRecoveryEmail(null);
+              setIsRecoverySessionReady(false);
               window.history.replaceState({}, "", "/");
             }}
             onBackToLogin={async () => {
               await handleLogout();
               navigateToSignIn();
             }}
+            recoveryEmail={recoveryEmail}
+            isSessionReady={isRecoverySessionReady}
           />
         </div>
       </div>
