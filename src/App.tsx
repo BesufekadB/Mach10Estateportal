@@ -7,10 +7,12 @@ import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Layers, ShieldAlert } from "lucide-react";
 import LoginScreen from "./components/LoginScreen";
 import PasswordResetScreen from "./components/PasswordResetScreen";
+import OnboardingScreen from "./components/OnboardingScreen";
 import TopNavBar from "./components/TopNavBar";
 import { getLocaleFromLanguage, I18nProvider, useI18n } from "./lib/i18n";
 import {
   authenticatePortalUser,
+  completeRecoveryCodeFromUrl,
   subscribeToPortalAuthChanges,
   getAuthenticatedEmail,
   getAuthenticatedSessionEmail,
@@ -63,6 +65,8 @@ function AppShell({
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [bootstrapError, setBootstrapError] = useState<string | null>(null);
   const [appError, setAppError] = useState<string | null>(null);
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+  const [onboardingUser, setOnboardingUser] = useState<UserProfile | null>(null);
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(
     isRecoveryPath() || window.location.hash.includes("type=recovery") || new URLSearchParams(window.location.search).get("recovery") === "1"
   );
@@ -147,6 +151,13 @@ function AppShell({
     const bootstrap = async () => {
       try {
         setBootstrapError(null);
+        if (isRecoveryPath() || window.location.search.includes("code=")) {
+          try {
+            await completeRecoveryCodeFromUrl();
+          } catch (error) {
+            setBootstrapError(error instanceof Error ? error.message : "Unable to complete password recovery.");
+          }
+        }
         const authResult = await getCurrentPortalUser();
         if (!isMounted) return;
 
@@ -278,7 +289,8 @@ function AppShell({
     localStorage.removeItem("aurelian_oauth_intent");
 
     if (oauthIntent === "signup" || isProfileSetupIncomplete(currentUser)) {
-      setActiveTab("profile");
+      setNeedsOnboarding(true);
+      setOnboardingUser(currentUser);
       setSelectedProject(null);
     } else {
       setActiveTab("dashboard");
@@ -332,20 +344,9 @@ function AppShell({
       setBootstrapError(null);
       localStorage.setItem("aurelian_user_session", JSON.stringify(result.user));
       localStorage.setItem("aurelian_data_mode", "supabase");
-      setActiveTab("dashboard");
+      setNeedsOnboarding(true);
+      setOnboardingUser(result.user);
       setSelectedProject(null);
-      navigateTo("client");
-
-      try {
-        const projectResult = await loadPortalProjects("supabase", result.user);
-        setProjects(projectResult.projects);
-      } catch (error) {
-        setAppError(
-          error instanceof Error
-            ? error.message
-            : "Your account was created, but project data could not be loaded yet."
-        );
-      }
     }
 
     return result;
@@ -384,6 +385,16 @@ function AppShell({
       preferredLanguage: updated.preferredLanguage,
     });
     onPreferredLanguageChange(updated.preferredLanguage as "English (International)" | "Amharic");
+    setOnboardingUser(null);
+    setNeedsOnboarding(false);
+    setActiveTab("dashboard");
+    navigateTo("client");
+    try {
+      const projectResult = await loadPortalProjects(dataMode, saved);
+      setProjects(projectResult.projects);
+    } catch {
+      setProjects([]);
+    }
   };
 
   const handleChangePassword = async (currentPassword: string, newPassword: string) => {
@@ -500,6 +511,21 @@ function AppShell({
             authMode={allowMockAuth && !isSupabaseConfigured ? "mock" : "supabase"}
             portalVariant={routeMode}
             systemError={bootstrapError}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  if (needsOnboarding && onboardingUser) {
+    return (
+      <div className="min-h-screen bg-stone-100 dark:bg-neutral-950 p-1 sm:p-2.5 transition-colors duration-300 flex flex-col justify-center">
+        <div className="flex-1 flex flex-col justify-center items-center rounded-[1.75rem] border border-outline-lucid/15 dark:border-outline-lucid/10 shadow-xl overflow-hidden text-onyx bg-background-luxury transition-all duration-350 relative">
+          <OnboardingScreen
+            user={onboardingUser}
+            theme={theme}
+            onToggleTheme={toggleTheme}
+            onComplete={handleUpdateUserProfile}
           />
         </div>
       </div>

@@ -14,7 +14,7 @@ import type {
   TourScene,
   UserProfile,
 } from "../types";
-import { allowMockAuth, isSupabaseConfigured, PROJECT_ASSETS_BUCKET, supabase } from "./supabase";
+import { allowMockAuth, isSupabaseConfigured, PROJECT_ASSETS_BUCKET, siteUrl, supabase } from "./supabase";
 
 type MockUserRecord = UserProfile & { passwordHash: string };
 
@@ -173,6 +173,18 @@ const mapUserToProfileRow = (user: UserProfile): Omit<ProfileRow, "created_at" |
   active_build_count: user.activeBuildCount,
 });
 
+const isMissingProfileColumnError = (errorMessage?: string) => {
+  const normalizedMessage = errorMessage?.toLowerCase() ?? "";
+  return normalizedMessage.includes("country") || normalizedMessage.includes("city");
+};
+
+const buildLegacyProfileRow = (user: UserProfile) => {
+  const { country, city, ...profileRow } = mapUserToProfileRow(user);
+  void country;
+  void city;
+  return profileRow;
+};
+
 const buildLegacyProjects = async (
   projectRows: ProjectRow[],
   assetRows: ProjectAssetRow[],
@@ -247,14 +259,22 @@ const upsertProfileFromAuthUser = async (
   const client = ensureSupabase();
   const baseProfile = buildProfileFromAuthUser(authUser, role, overrides);
 
-  const { data, error } = await client
+  const { error } = await client
     .from("profiles")
-    .upsert(mapUserToProfileRow(baseProfile), { onConflict: "id" })
-    .select("*")
-    .single();
+    .upsert(mapUserToProfileRow(baseProfile), { onConflict: "id" });
 
-  if (error || !data) {
-    throw new Error("Unable to save your profile.");
+  if (error) {
+    throw new Error(`Unable to save your profile. ${error.message}`);
+  }
+
+  const { data, error: fetchError } = await client
+    .from("profiles")
+    .select("*")
+    .eq("id", baseProfile.id)
+    .maybeSingle();
+
+  if (fetchError || !data) {
+    return baseProfile;
   }
 
   return mapProfileRow(data as ProfileRow);
@@ -423,11 +443,21 @@ export async function registerPortalUser(payload: SignUpPayload): Promise<SignUp
     };
   }
 
-  const profile = await upsertProfileFromAuthUser(data.user, "client", {
-    company: payload.company.trim(),
-    phoneNumber: normalizedPhone,
-    email: normalizedEmail,
-  });
+  let profile: UserProfile;
+
+  try {
+    profile = await upsertProfileFromAuthUser(data.user, "client", {
+      company: payload.company.trim(),
+      phoneNumber: normalizedPhone,
+      email: normalizedEmail,
+    });
+  } catch {
+    profile = buildProfileFromAuthUser(data.user, "client", {
+      company: payload.company.trim(),
+      phoneNumber: normalizedPhone,
+      email: normalizedEmail,
+    });
+  }
 
   return {
     status: "signed_in",
@@ -451,15 +481,28 @@ export async function savePortalUserProfile(user: UserProfile): Promise<UserProf
   }
 
   const client = ensureSupabase();
-  const { data, error } = await client
+  let { error } = await client
     .from("profiles")
-    .update(mapUserToProfileRow(user))
-    .eq("id", user.id)
-    .select("*")
-    .single();
+    .upsert(mapUserToProfileRow(user), { onConflict: "id" });
 
-  if (error || !data) {
-    throw new Error("Unable to save your profile.");
+  if (error && isMissingProfileColumnError(error.message)) {
+    ({ error } = await client
+      .from("profiles")
+      .upsert(buildLegacyProfileRow(user), { onConflict: "id" }));
+  }
+
+  if (error) {
+    throw new Error(`Unable to save your profile. ${error.message}`);
+  }
+
+  const { data, error: fetchError } = await client
+    .from("profiles")
+    .select("*")
+    .eq("id", user.id)
+    .maybeSingle();
+
+  if (fetchError || !data) {
+    return user;
   }
 
   return mapProfileRow(data as ProfileRow);
@@ -467,7 +510,7 @@ export async function savePortalUserProfile(user: UserProfile): Promise<UserProf
 
 export async function sendPortalPasswordReset(email: string) {
   const client = ensureSupabase();
-  const recoveryUrl = `${window.location.origin}/reset-password`;
+  const recoveryUrl = `${siteUrl || window.location.origin}/reset-password`;
   const { error } = await client.auth.resetPasswordForEmail(normalizeEmail(email), {
     redirectTo: recoveryUrl,
   });
@@ -478,6 +521,12 @@ export async function sendPortalPasswordReset(email: string) {
     if (message.includes("redirect") || message.includes("invalid") || message.includes("not allowed")) {
       throw new Error(
         `Supabase rejected the recovery redirect. Add ${recoveryUrl} to Authentication > URL Configuration > Redirect URLs.`
+      );
+    }
+
+    if (message.includes("smtp") || message.includes("email") || message.includes("mailer")) {
+      throw new Error(
+        `Supabase accepted the reset request, but email delivery failed. Check your Brevo SMTP credentials, sender domain, and Supabase Authentication > Email settings.`
       );
     }
 
@@ -538,6 +587,24 @@ export async function updatePortalUserPassword({
     password: newPassword,
   });
 
+  if (error) {
+    throw new Error(error.message);
+  }
+}
+
+export async function completeRecoveryCodeFromUrl() {
+  if (!isSupabaseConfigured || !supabase) {
+    return;
+  }
+
+  const url = new URL(window.location.href);
+  const code = url.searchParams.get("code");
+
+  if (!code) {
+    return;
+  }
+
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
   if (error) {
     throw new Error(error.message);
   }
