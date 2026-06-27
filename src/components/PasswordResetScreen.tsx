@@ -13,7 +13,7 @@ interface PasswordResetScreenProps {
   onSubmit: (newPassword: string, confirmPassword: string) => Promise<void>;
   onBackToLogin: () => void;
   recoveryEmail?: string | null;
-  isSessionReady?: boolean;
+  isSessionReady?: boolean | null;
 }
 
 export default function PasswordResetScreen({
@@ -22,7 +22,7 @@ export default function PasswordResetScreen({
   onSubmit,
   onBackToLogin,
   recoveryEmail = null,
-  isSessionReady = true,
+  isSessionReady = null,
 }: PasswordResetScreenProps) {
   const { t } = useI18n();
   const backgroundOverlay =
@@ -39,9 +39,9 @@ export default function PasswordResetScreen({
   const inputClass = "w-full bg-cream-low border border-outline-lucid/70 focus:border-primary px-4 py-3 text-sm outline-none text-onyx transition-colors placeholder-neutral-stone/50 font-sans rounded-[var(--radius-ui-sm)]";
 
   useEffect(() => {
-    if (!isSessionReady) {
+    if (isSessionReady === false) {
       setError(t("auth.recoverySessionMissing"));
-    } else {
+    } else if (isSessionReady === true) {
       setError(null);
     }
   }, [isSessionReady, t]);
@@ -51,7 +51,7 @@ export default function PasswordResetScreen({
     setError(null);
     setSuccess(null);
 
-    if (!isSessionReady) {
+    if (isSessionReady !== true) {
       setError(t("auth.recoverySessionMissing"));
       return;
     }
@@ -139,6 +139,11 @@ export default function PasswordResetScreen({
                   {recoveryEmail}
                 </p>
               ) : null}
+              {isSessionReady === null ? (
+                <p className="mt-2 text-xs uppercase tracking-[0.18em] text-neutral-stone">
+                  {t("common.loading")}
+                </p>
+              ) : null}
             </div>
           </div>
 
@@ -186,7 +191,7 @@ export default function PasswordResetScreen({
 
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={isSubmitting || isSessionReady !== true}
               className="w-full bg-primary hover:brightness-110 text-[#15110b] font-sans text-xs py-3.5 uppercase tracking-[0.24em] font-semibold transition-all duration-300 flex items-center justify-center gap-2 rounded-[var(--radius-ui-sm)]"
             >
               {isSubmitting ? t("profilePage.updatingSecurity") : t("auth.resetPasswordAction")}

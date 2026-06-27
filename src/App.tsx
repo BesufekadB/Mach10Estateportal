@@ -13,6 +13,7 @@ import {
   authenticatePortalUser,
   subscribeToPortalAuthChanges,
   getAuthenticatedEmail,
+  getAuthenticatedSessionEmail,
   getCurrentPortalUser,
   loadPortalProjects,
   registerPortalUser,
@@ -33,6 +34,15 @@ const AdminPortal = lazy(() => import("./components/AdminPortal"));
 
 const getRouteMode = (): RouteMode => (window.location.pathname.startsWith("/admin") ? "admin" : "client");
 const isRecoveryPath = () => window.location.pathname === "/reset-password";
+
+const isProfileSetupIncomplete = (user: UserProfile) =>
+  !user.phoneNumber ||
+  !user.company ||
+  user.company === "Private Client" ||
+  !user.country ||
+  !user.city ||
+  !user.professionalTitle ||
+  user.professionalTitle === "Client Account";
 
 function AppShell({
   preferredLanguage,
@@ -57,7 +67,7 @@ function AppShell({
     isRecoveryPath() || window.location.hash.includes("type=recovery") || new URLSearchParams(window.location.search).get("recovery") === "1"
   );
   const [recoveryEmail, setRecoveryEmail] = useState<string | null>(null);
-  const [isRecoverySessionReady, setIsRecoverySessionReady] = useState(false);
+  const [isRecoverySessionReady, setIsRecoverySessionReady] = useState<boolean | null>(null);
 
   const clientProjects = useMemo(() => {
     if (!currentUser) return [];
@@ -198,10 +208,16 @@ function AppShell({
   }, []);
 
   useEffect(() => {
-    const unsubscribe = subscribeToPortalAuthChanges((event) => {
-      if (event === "PASSWORD_RECOVERY") {
+    const unsubscribe = subscribeToPortalAuthChanges((event, session) => {
+      const recoveryFromPath = isRecoveryPath() || window.location.hash.includes("type=recovery");
+      const isRecoveryEvent =
+        event === "PASSWORD_RECOVERY" ||
+        ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && recoveryFromPath);
+
+      if (isRecoveryEvent) {
         setIsPasswordRecovery(true);
-        setIsRecoverySessionReady(true);
+        setRecoveryEmail(session?.user?.email ?? null);
+        setIsRecoverySessionReady(session?.user?.email ? true : null);
         window.history.replaceState({}, "", "/reset-password");
       }
     });
@@ -216,12 +232,26 @@ function AppShell({
       if (!isPasswordRecovery || !isSupabaseConfigured) {
         if (active) {
           setRecoveryEmail(null);
-          setIsRecoverySessionReady(false);
+          setIsRecoverySessionReady(null);
         }
         return;
       }
 
-      const email = await getAuthenticatedEmail().catch(() => null);
+      setIsRecoverySessionReady(null);
+      let email: string | null = null;
+
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        email =
+          (await getAuthenticatedSessionEmail().catch(() => null)) ??
+          (await getAuthenticatedEmail().catch(() => null));
+
+        if (email) {
+          break;
+        }
+
+        await new Promise((resolve) => window.setTimeout(resolve, 400));
+      }
+
       if (!active) return;
 
       setRecoveryEmail(email);
@@ -234,6 +264,27 @@ function AppShell({
       active = false;
     };
   }, [isPasswordRecovery]);
+
+  useEffect(() => {
+    if (!currentUser || routeMode !== "client") {
+      return;
+    }
+
+    const oauthIntent = localStorage.getItem("aurelian_oauth_intent");
+    if (!oauthIntent) {
+      return;
+    }
+
+    localStorage.removeItem("aurelian_oauth_intent");
+
+    if (oauthIntent === "signup" || isProfileSetupIncomplete(currentUser)) {
+      setActiveTab("profile");
+      setSelectedProject(null);
+    } else {
+      setActiveTab("dashboard");
+      setSelectedProject(null);
+    }
+  }, [currentUser, routeMode]);
 
   const toggleTheme = () => {
     const nextTheme = theme === "dark" || theme === null ? "light" : "dark";
@@ -420,13 +471,13 @@ function AppShell({
               onToggleTheme={toggleTheme}
               onSubmit={async (newPassword) => {
                 await updatePortalUserPassword({
-                  email: "",
+                  email: recoveryEmail ?? "",
                   newPassword,
                   requireCurrentPassword: false,
                 });
                 setIsPasswordRecovery(false);
                 setRecoveryEmail(null);
-                setIsRecoverySessionReady(false);
+                setIsRecoverySessionReady(null);
                 window.history.replaceState({}, "", "/");
               }}
               onBackToLogin={navigateToSignIn}
@@ -470,7 +521,7 @@ function AppShell({
               });
               setIsPasswordRecovery(false);
               setRecoveryEmail(null);
-              setIsRecoverySessionReady(false);
+              setIsRecoverySessionReady(null);
               window.history.replaceState({}, "", "/");
             }}
             onBackToLogin={async () => {

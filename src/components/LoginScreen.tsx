@@ -137,13 +137,29 @@ export default function LoginScreen({
   };
 
   const handleGoogleSignUp = async () => {
+    await handleGoogleOAuth("signup");
+  };
+
+  const handleGoogleSignIn = async () => {
+    await handleGoogleOAuth("signin");
+  };
+
+  const handleGoogleOAuth = async (intent: "signin" | "signup") => {
     setSignUpError(null);
     setSignUpSuccessMessage(null);
+    setError(null);
 
     if (!isSupabaseConfigured || !supabase) {
-      setSignUpError(t("auth.googleRequiresSupabase"));
+      const message = t("auth.googleRequiresSupabase");
+      if (intent === "signup") {
+        setSignUpError(message);
+      } else {
+        setError(message);
+      }
       return;
     }
+
+    localStorage.setItem("aurelian_oauth_intent", intent);
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
@@ -153,7 +169,12 @@ export default function LoginScreen({
     });
 
     if (error) {
-      setSignUpError(error.message);
+      localStorage.removeItem("aurelian_oauth_intent");
+      if (intent === "signup") {
+        setSignUpError(error.message);
+      } else {
+        setError(error.message);
+      }
     }
   };
 
@@ -286,6 +307,17 @@ export default function LoginScreen({
             >
               {isSubmitting ? t("auth.signingIn") : isAdminPortal ? t("auth.adminSignIn") : t("auth.signIn")} <ArrowRight className="w-3.5 h-3.5" />
             </button>
+
+            {!isAdminPortal ? (
+              <button
+                type="button"
+                onClick={() => void handleGoogleSignIn()}
+                className="w-full flex items-center justify-center gap-2 border border-outline-lucid/55 bg-cream-low px-4 py-3 text-[10px] uppercase tracking-widest text-onyx rounded-[var(--radius-ui-sm)] transition-colors hover:border-primary hover:bg-primary/10"
+              >
+                <Mail className="w-4 h-4" />
+                {t("auth.googleSignin")}
+              </button>
+            ) : null}
           </form>
 
           {/* Prompt Request Acceses Section */}
