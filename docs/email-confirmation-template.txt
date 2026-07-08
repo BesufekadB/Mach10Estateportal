@@ -1,0 +1,13 @@
+ESTATE PORTAL BY MACH10
+
+Confirm your email
+
+Welcome to Estate Portal. Please confirm your email address to activate your account and complete setup.
+
+Confirm here:
+{{ .ConfirmationURL }}
+
+If you did not create this account, you can ignore this email.
+
+Estate Portal by Mach10
+Premium client workspace for property and project management.

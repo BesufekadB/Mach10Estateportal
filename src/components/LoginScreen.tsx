@@ -3,8 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useEffect } from "react";
 import { Lock, Eye, EyeOff, ArrowRight, Sun, Moon, Layers, Mail } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useI18n } from "../lib/i18n";
 import { sendPortalPasswordReset } from "../lib/portalData";
 import { supabase, isSupabaseConfigured } from "../lib/supabase";
@@ -56,9 +57,22 @@ export default function LoginScreen({
   const [signUpPassword, setSignUpPassword] = useState("");
   const [signUpPhoneNumber, setSignUpPhoneNumber] = useState("");
   const [signUpCompany, setSignUpCompany] = useState("");
+  const [signUpPlan, setSignUpPlan] = useState("");
   const [requestSubmitted, setRequestSubmitted] = useState(false);
   const [signUpError, setSignUpError] = useState<string | null>(null);
   const [signUpSuccessMessage, setSignUpSuccessMessage] = useState<string | null>(null);
+  
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("action") === "signup") {
+      setShowRequestModal(true);
+      const plan = params.get("plan");
+      if (plan) {
+        setSignUpPlan(plan);
+      }
+    }
+  }, []);
+
   const panelClass = "bg-card-bg/92 p-8 md:p-10 border border-outline-lucid/55 shadow-[0px_24px_60px_rgba(0,0,0,0.18)] rounded-[1rem] transition-colors duration-300 backdrop-blur-md";
   const inputClass = "w-full bg-cream-low border border-outline-lucid/70 focus:border-primary px-4 py-3 text-sm outline-none text-onyx transition-colors placeholder-neutral-stone/50 font-sans rounded-[var(--radius-ui-sm)]";
   const modalClass = "bg-card-bg border border-outline-lucid/70 rounded-[var(--radius-ui)] shadow-2xl p-8 w-full relative transition-colors duration-300";
@@ -114,7 +128,16 @@ export default function LoginScreen({
     }
 
     try {
-      const result = await onSignUp(signUpEmail, signUpPassword, signUpPhoneNumber, signUpCompany);
+      const planLabels: Record<string, string> = {
+        production: "Production Setup",
+        essential: "Essential Hosting",
+        professional: "Professional Hosting",
+        enterprise: "Enterprise Hosting",
+      };
+      const planLabel = planLabels[signUpPlan] || signUpPlan;
+      const companyWithPlan = planLabel ? `${signUpCompany.trim()} [${planLabel}]` : signUpCompany.trim();
+
+      const result = await onSignUp(signUpEmail, signUpPassword, signUpPhoneNumber, companyWithPlan);
       setRequestSubmitted(true);
       if (result && result.status === "needs_confirmation") {
         setSignUpSuccessMessage(t("auth.confirmationNeeded"));
@@ -207,7 +230,12 @@ export default function LoginScreen({
         </button>
       </div>
 
-      <main className="w-full max-w-[440px] z-10">
+      <motion.main
+        initial={{ opacity: 0, y: 15 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="w-full max-w-[440px] z-10"
+      >
         
         {/* Branding Title Block */}
         <header className="text-center mb-10 space-y-2">
@@ -352,166 +380,208 @@ export default function LoginScreen({
             <footer className="mt-16 text-center text-[10px] text-stone-variant/80 dark:text-neutral-stone/60 uppercase tracking-[0.12em] font-sans">
           © {new Date().getFullYear()} {t("auth.allRightsReserved")}
         </footer>
-      </main>
+      </motion.main>
 
       {/* Forgot Password Modal Module */}
-      {showForgotModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${modalClass} max-w-sm`}>
-            <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-onyx mb-2">
-              {t("auth.recoverCredentials")}
-            </h3>
-            <p className="text-xs text-neutral-stone leading-relaxed mb-6">
-              {t("auth.recoverLead")}
-            </p>
+      <AnimatePresence>
+        {showForgotModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              transition={{ type: "spring", duration: 0.35 }}
+              className={`${modalClass} max-w-sm`}
+            >
+              <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-onyx mb-2">
+                {t("auth.recoverCredentials")}
+              </h3>
+              <p className="text-xs text-neutral-stone leading-relaxed mb-6">
+                {t("auth.recoverLead")}
+              </p>
 
-            {forgotSuccess ? (
-              <div className="bg-stone-50 dark:bg-cream-low border border-primary/20 text-xs p-4 text-primary leading-relaxed uppercase tracking-wider font-semibold text-center rounded-[var(--radius-ui-sm)]">
-                {t("auth.instructionsSent")}
-              </div>
-            ) : (
-              <form onSubmit={handleForgotSubmit} className="space-y-4">
-                {forgotError ? (
-                  <div className="bg-red-50 border border-red-200 text-red-900 text-xs px-4 py-3 rounded-[var(--radius-ui-sm)] space-y-2">
-                    <p>{forgotError}</p>
-                    <p className="text-red-800/80">{t("auth.resetRedirectHelp")}</p>
-                  </div>
-                ) : null}
-                <input
-                  type="email"
-                  required
-                  placeholder={t("auth.clientPlaceholder")}
-                  value={forgotEmail}
-                  onChange={(e) => setForgotEmail(e.target.value)}
-                  className={`${inputClass} text-xs`}
-                />
-                <div className="flex justify-end gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setShowForgotModal(false);
-                      setForgotError(null);
-                      setForgotSuccess(false);
-                    }}
-                    className={subtleButtonClass}
-                  >
-                    {t("common.cancel")}
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={forgotSubmitting}
-                    className="bg-primary text-white text-[10px] uppercase font-medium tracking-widest px-6 py-2 transition-transform hover:scale-102 rounded-[var(--radius-ui-sm)]"
-                  >
-                    {forgotSubmitting ? t("auth.sendingInstructions") : t("auth.sendInstructions")}
-                  </button>
+              {forgotSuccess ? (
+                <div className="bg-stone-50 dark:bg-cream-low border border-primary/20 text-xs p-4 text-primary leading-relaxed uppercase tracking-wider font-semibold text-center rounded-[var(--radius-ui-sm)]">
+                  {t("auth.instructionsSent")}
                 </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* Request Access Registry Modal */}
-      {showRequestModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className={`${modalClass} max-w-md`}>
-            <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-onyx mb-2">
-              {t("auth.signUpTitle")}
-            </h3>
-            <p className="text-xs text-neutral-stone leading-relaxed mb-6">
-              {t("auth.signUpLead")}
-            </p>
-
-            {requestSubmitted ? (
-              <div className="bg-stone-50 dark:bg-cream-low border border-primary/35 text-xs p-6 text-primary leading-relaxed text-center space-y-2">
-                <div className="font-semibold uppercase tracking-wider">{t("auth.accountCreatedTitle")}</div>
-                <p className="text-[10px] text-stone-variant">{signUpSuccessMessage}</p>
-              </div>
-            ) : (
-              <form onSubmit={handleRequestAccess} className="space-y-4 text-left">
-                {signUpError ? (
-                  <div className="bg-red-50 border border-red-200 text-red-900 text-xs px-4 py-3 rounded-[var(--radius-ui-sm)]">
-                    {signUpError}
-                  </div>
-                ) : null}
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-neutral-stone">{t("auth.email")}</label>
+              ) : (
+                <form onSubmit={handleForgotSubmit} className="space-y-4">
+                  {forgotError ? (
+                <div className="bg-red-50 border border-red-200 text-red-900 text-xs px-4 py-3 rounded-[var(--radius-ui-sm)] space-y-2">
+                  <p>{forgotError}</p>
+                  {forgotError.toLowerCase().includes("redirect") ? (
+                    <p className="text-red-800/80">{t("auth.resetRedirectHelp")}</p>
+                  ) : null}
+                </div>
+                  ) : null}
                   <input
                     type="email"
                     required
-                    placeholder="you@company.com"
-                    value={signUpEmail}
-                    onChange={(e) => setSignUpEmail(e.target.value)}
+                    placeholder={t("auth.clientPlaceholder")}
+                    value={forgotEmail}
+                    onChange={(e) => setForgotEmail(e.target.value)}
                     className={`${inputClass} text-xs`}
                   />
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowForgotModal(false);
+                        setForgotError(null);
+                        setForgotSuccess(false);
+                      }}
+                      className={subtleButtonClass}
+                    >
+                      {t("common.cancel")}
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={forgotSubmitting}
+                      className="bg-primary text-white text-[10px] uppercase font-medium tracking-widest px-6 py-2 transition-transform hover:scale-102 rounded-[var(--radius-ui-sm)]"
+                    >
+                      {forgotSubmitting ? t("auth.sendingInstructions") : t("auth.sendInstructions")}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Request Access Registry Modal */}
+      <AnimatePresence>
+        {showRequestModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              transition={{ type: "spring", duration: 0.35 }}
+              className={`${modalClass} max-w-md`}
+            >
+              <h3 className="font-display text-sm font-semibold uppercase tracking-wider text-onyx mb-2">
+                {t("auth.signUpTitle")}
+              </h3>
+              <p className="text-xs text-neutral-stone leading-relaxed mb-6">
+                {t("auth.signUpLead")}
+              </p>
+
+              {requestSubmitted ? (
+                <div className="bg-stone-50 dark:bg-cream-low border border-primary/35 text-xs p-6 text-primary leading-relaxed text-center space-y-2">
+                  <div className="font-semibold uppercase tracking-wider">{t("auth.accountCreatedTitle")}</div>
+                  <p className="text-[10px] text-stone-variant">{signUpSuccessMessage}</p>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-neutral-stone">{t("auth.password")}</label>
-                  <input
-                    type="password"
-                    required
-                    placeholder={t("auth.passwordPlaceholder")}
-                    value={signUpPassword}
-                    onChange={(e) => setSignUpPassword(e.target.value)}
-                    className={`${inputClass} text-xs`}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-neutral-stone">{t("auth.phoneNumber")}</label>
-                  <input
-                    type="tel"
-                    required
-                    placeholder="+251912345678"
-                    value={signUpPhoneNumber}
-                    onChange={(e) => setSignUpPhoneNumber(e.target.value)}
-                    className={`${inputClass} text-xs`}
-                  />
-                  <p className="text-[10px] text-neutral-stone">{t("auth.phoneHint")}</p>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[9px] uppercase tracking-widest text-[#775a19]">{t("auth.company")}</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder={t("auth.companyPlaceholder")}
-                    value={signUpCompany}
-                    onChange={(e) => setSignUpCompany(e.target.value)}
-                    className={`${inputClass} text-xs`}
-                  />
-                </div>
-                <div className="flex justify-end gap-3 pt-4">
+              ) : (
+                <form onSubmit={handleRequestAccess} className="space-y-4 text-left">
+                  {signUpError ? (
+                    <div className="bg-red-50 border border-red-200 text-red-900 text-xs px-4 py-3 rounded-[var(--radius-ui-sm)]">
+                      {signUpError}
+                    </div>
+                  ) : null}
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase tracking-widest text-neutral-stone">{t("auth.email")}</label>
+                    <input
+                      type="email"
+                      required
+                      placeholder="you@company.com"
+                      value={signUpEmail}
+                      onChange={(e) => setSignUpEmail(e.target.value)}
+                      className={`${inputClass} text-xs`}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase tracking-widest text-neutral-stone">{t("auth.password")}</label>
+                    <input
+                      type="password"
+                      required
+                      placeholder={t("auth.passwordPlaceholder")}
+                      value={signUpPassword}
+                      onChange={(e) => setSignUpPassword(e.target.value)}
+                      className={`${inputClass} text-xs`}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase tracking-widest text-neutral-stone">{t("auth.phoneNumber")}</label>
+                    <input
+                      type="tel"
+                      required
+                      placeholder="+251912345678"
+                      value={signUpPhoneNumber}
+                      onChange={(e) => setSignUpPhoneNumber(e.target.value)}
+                      className={`${inputClass} text-xs`}
+                    />
+                    <p className="text-[10px] text-neutral-stone">{t("auth.phoneHint")}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase tracking-widest text-[#775a19]">{t("auth.company")}</label>
+                    <input
+                      type="text"
+                      required
+                      placeholder={t("auth.companyPlaceholder")}
+                      value={signUpCompany}
+                      onChange={(e) => setSignUpCompany(e.target.value)}
+                      className={`${inputClass} text-xs`}
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] uppercase tracking-widest text-neutral-stone">Selected Plan</label>
+                    <select
+                      value={signUpPlan}
+                      onChange={(e) => setSignUpPlan(e.target.value)}
+                      className={`${inputClass} text-xs bg-cream-low`}
+                    >
+                      <option value="">No Plan / Custom Inquiry</option>
+                      <option value="production">Production Setup (Br4,500 one-time)</option>
+                      <option value="essential">Essential Hosting (Br2,400/mo)</option>
+                      <option value="professional">Professional Hosting (Br5,000/mo)</option>
+                      <option value="enterprise">Enterprise Hosting (Br13,000/mo)</option>
+                    </select>
+                  </div>
+                  <div className="flex justify-end gap-3 pt-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowRequestModal(false);
+                        setSignUpError(null);
+                        setSignUpSuccessMessage(null);
+                        setRequestSubmitted(false);
+                      }}
+                      className={subtleButtonClass}
+                    >
+                      {t("auth.close")}
+                    </button>
+                    <button
+                      type="submit"
+                      className="bg-primary text-white text-[10px] uppercase font-medium tracking-widest px-6 py-2.5 shadow rounded-[var(--radius-ui-sm)]"
+                    >
+                      {t("auth.createAccount")}
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      setShowRequestModal(false);
-                      setSignUpError(null);
-                      setSignUpSuccessMessage(null);
-                      setRequestSubmitted(false);
-                    }}
-                    className={subtleButtonClass}
+                    onClick={handleGoogleSignUp}
+                    className="w-full flex items-center justify-center gap-2 border border-outline-lucid/55 bg-cream-low px-4 py-3 text-[10px] uppercase tracking-widest text-onyx rounded-[var(--radius-ui-sm)] transition-colors hover:border-primary hover:bg-primary/10"
                   >
-                    {t("auth.close")}
+                    <Mail className="w-4 h-4" />
+                    {t("auth.googleSignup")}
                   </button>
-                  <button
-                    type="submit"
-                    className="bg-primary text-white text-[10px] uppercase font-medium tracking-widest px-6 py-2.5 shadow rounded-[var(--radius-ui-sm)]"
-                  >
-                    {t("auth.createAccount")}
-                  </button>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleGoogleSignUp}
-                  className="w-full flex items-center justify-center gap-2 border border-outline-lucid/55 bg-cream-low px-4 py-3 text-[10px] uppercase tracking-widest text-onyx rounded-[var(--radius-ui-sm)] transition-colors hover:border-primary hover:bg-primary/10"
-                >
-                  <Mail className="w-4 h-4" />
-                  {t("auth.googleSignup")}
-                </button>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+                </form>
+              )}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       
     </div>
   );

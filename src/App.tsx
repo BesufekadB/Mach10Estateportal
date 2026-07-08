@@ -6,6 +6,7 @@
 import { Suspense, lazy, useEffect, useMemo, useState } from "react";
 import { Layers, ShieldAlert } from "lucide-react";
 import LoginScreen from "./components/LoginScreen";
+import MarketingLandingPage from "./components/MarketingLandingPage";
 import PasswordResetScreen from "./components/PasswordResetScreen";
 import OnboardingScreen from "./components/OnboardingScreen";
 import TopNavBar from "./components/TopNavBar";
@@ -35,6 +36,10 @@ const ProfileView = lazy(() => import("./components/ProfileView"));
 const AdminPortal = lazy(() => import("./components/AdminPortal"));
 
 const getRouteMode = (): RouteMode => (window.location.pathname.startsWith("/admin") ? "admin" : "client");
+const isMarketingPath = () => {
+  const path = window.location.pathname;
+  return path === "/";
+};
 const isRecoveryPath = () => window.location.pathname === "/reset-password";
 
 const isProfileSetupIncomplete = (user: UserProfile) =>
@@ -56,6 +61,7 @@ function AppShell({
   const { t } = useI18n();
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
   const [routeMode, setRouteMode] = useState<RouteMode>(getRouteMode);
+  const [currentPath, setCurrentPath] = useState(() => window.location.pathname);
   const [dataMode, setDataMode] = useState<DataSourceMode>("supabase");
   const [activeTab, setActiveTab] = useState<ClientTab>("dashboard");
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
@@ -87,23 +93,31 @@ function AppShell({
     </div>
   );
 
-  const navigateTo = (mode: RouteMode) => {
-    const path = mode === "admin" ? "/admin" : "/";
-    window.history.pushState({}, "", path);
+  const navigateTo = (mode: RouteMode, action?: "signin" | "signup", plan?: string) => {
+    const path = mode === "admin" ? "/admin" : "/portal";
+    const params = new URLSearchParams();
+    if (action) params.set("action", action);
+    if (plan) params.set("plan", plan);
+    const query = params.toString();
+    const finalPath = query ? `${path}?${query}` : path;
+    window.history.pushState({}, "", finalPath);
     setRouteMode(mode);
+    setCurrentPath(path);
     setSelectedProject(null);
   };
 
   const navigateToRecovery = () => {
     window.history.pushState({}, "", "/reset-password");
     setRouteMode("client");
+    setCurrentPath("/reset-password");
     setSelectedProject(null);
     setIsPasswordRecovery(true);
   };
 
   const navigateToSignIn = () => {
-    window.history.pushState({}, "", routeMode === "admin" ? "/admin" : "/");
+    window.history.pushState({}, "", routeMode === "admin" ? "/admin" : "/portal");
     setRouteMode(getRouteMode());
+    setCurrentPath(window.location.pathname);
     setSelectedProject(null);
     setIsPasswordRecovery(false);
   };
@@ -111,6 +125,7 @@ function AppShell({
   useEffect(() => {
     const handlePopState = () => {
       setRouteMode(getRouteMode());
+      setCurrentPath(window.location.pathname);
       setSelectedProject(null);
       setIsPasswordRecovery(isRecoveryPath() || window.location.hash.includes("type=recovery") || new URLSearchParams(window.location.search).get("recovery") === "1");
     };
@@ -473,6 +488,16 @@ function AppShell({
   }
 
   if (!currentUser) {
+    if (!isPasswordRecovery && !currentPath.startsWith("/admin") && currentPath === "/") {
+      return (
+        <MarketingLandingPage
+          theme={theme}
+          onToggleTheme={toggleTheme}
+          onOpenPortal={(action, plan) => navigateTo("client", action, plan)}
+        />
+      );
+    }
+
     if (isPasswordRecovery) {
       return (
         <div className="min-h-screen bg-stone-100 dark:bg-neutral-950 p-1 sm:p-2.5 transition-colors duration-300 flex flex-col justify-center">
