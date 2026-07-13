@@ -178,6 +178,55 @@ to authenticated
 using (public.is_admin())
 with check (public.is_admin());
 
+-- The share page reads only this curated project data through a security-definer RPC.
+-- The underlying projects and assets remain protected by their RLS policies.
+create or replace function public.get_shared_tour(shared_project_id uuid)
+returns table (
+  id uuid,
+  project_name text,
+  location text,
+  description text,
+  category text,
+  status text,
+  beds text,
+  baths text,
+  living_area text,
+  acreage text,
+  built_year text,
+  garage text,
+  amenities text,
+  price text,
+  tour_embed_url text,
+  created_at timestamptz
+)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    projects.id,
+    projects.project_name,
+    projects.location,
+    projects.description,
+    projects.category,
+    projects.status,
+    projects.beds,
+    projects.baths,
+    projects.living_area,
+    projects.acreage,
+    projects.built_year,
+    projects.garage,
+    projects.amenities,
+    projects.price,
+    projects.tour_embed_url,
+    projects.created_at
+  from public.projects
+  where projects.id = shared_project_id;
+$$;
+
+grant execute on function public.get_shared_tour(uuid) to anon, authenticated;
+
 drop policy if exists "project_assets_select_assigned_or_admin" on public.project_assets;
 create policy "project_assets_select_assigned_or_admin"
 on public.project_assets

@@ -4,7 +4,7 @@
  */
 
 import { useState, FormEvent } from "react";
-import { ArrowLeft, ExternalLink, FileDown, Sparkles, Send, MapPin, ShieldCheck, Clock3 } from "lucide-react";
+import { ArrowLeft, Copy, Check, ExternalLink, FileDown, Sparkles, Send, MapPin, ShieldCheck, Clock3, Share2 } from "lucide-react";
 import { useI18n } from "../lib/i18n";
 import { Project, TourScene } from "../types";
 import { normalizeTourEmbedUrl } from "../lib/portalData";
@@ -34,6 +34,7 @@ export default function ProjectDetailView({ project, onBack }: ProjectDetailView
     }
   ]);
   const [chatLoading, setChatLoading] = useState(false);
+  const [shareStatus, setShareStatus] = useState<"idle" | "copied">("idle");
   const embedUrl = normalizeTourEmbedUrl(project.tourEmbedUrl ?? "");
   const hasEmbedTour = Boolean(embedUrl);
   const timelineStages = [
@@ -98,6 +99,22 @@ export default function ProjectDetailView({ project, onBack }: ProjectDetailView
       }[project.status] ?? project.status)
     : project.status;
   const vaultDownloadUrl = project.specs.attachmentUrl || project.specs.brochureUrl;
+  const shareUrl = `${window.location.origin}/tour/${encodeURIComponent(project.id)}`;
+
+  const shareTour = async () => {
+    const shareData = { title: `${project.name} | Estate Portal`, text: `Explore the virtual tour for ${project.name}.`, url: shareUrl };
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+    await navigator.clipboard.writeText(shareUrl);
+    setShareStatus("copied");
+    window.setTimeout(() => setShareStatus("idle"), 2400);
+  };
 
   return (
     <div className="space-y-8 pb-12 max-w-[1760px] mx-auto">
@@ -170,10 +187,6 @@ export default function ProjectDetailView({ project, onBack }: ProjectDetailView
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
               />
             </div>
-            <a href={embedUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 text-xs uppercase tracking-widest text-primary">
-              {t("projectPage.openExternalTour")}
-              <ExternalLink className="w-3.5 h-3.5" />
-            </a>
           </div>
         ) : (
           <TourViewer360
@@ -182,6 +195,10 @@ export default function ProjectDetailView({ project, onBack }: ProjectDetailView
             onSelectScene={setActiveScene}
           />
         )}
+        <button onClick={() => void shareTour()} className="inline-flex items-center gap-2 rounded-[var(--radius-ui-sm)] border border-primary/35 bg-primary/10 px-3 py-2 text-xs uppercase tracking-widest text-primary hover:bg-primary/20">
+          {shareStatus === "copied" ? <Check className="w-3.5 h-3.5" /> : navigator.share ? <Share2 className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+          {shareStatus === "copied" ? "Estate Portal link copied" : "Share Estate Portal tour"}
+        </button>
       </section>
 
       {/* Two column presentation: Specs & Narrative VS AI Q&A Terminal */}

@@ -28,6 +28,11 @@ export interface PortalBootstrapData {
   mode: DataSourceMode;
 }
 
+export interface SharedTourResult {
+  project: Project | null;
+  mode: DataSourceMode;
+}
+
 export interface SignUpPayload {
   email: string;
   password: string;
@@ -383,6 +388,53 @@ export async function loadPortalProjects(
   return {
     projects: await buildLegacyProjects(projectRows, assetData as ProjectAssetRow[], currentUser.preferredLanguage),
     mode: "supabase",
+  };
+}
+
+// This intentionally uses a small public RPC rather than exposing the projects table.
+export async function loadSharedTour(projectId: string): Promise<SharedTourResult> {
+  const mockProject = MOCK_PROJECTS.find((project) => project.id === projectId);
+  if (mockProject && (allowMockAuth || !isSupabaseConfigured)) {
+    return { project: mockProject, mode: "mock" };
+  }
+
+  const client = ensureSupabase();
+  const { data, error } = await client.rpc("get_shared_tour", { shared_project_id: projectId }).maybeSingle();
+  if (error) {
+    throw new Error(`Unable to load this shared tour: ${error.message}`);
+  }
+  if (!data) {
+    return { project: null, mode: "supabase" };
+  }
+
+  const row = data as ProjectRow;
+  return {
+    mode: "supabase",
+    project: {
+      id: row.id,
+      name: row.project_name,
+      location: row.location,
+      dateAdded: formatDateAdded(row.created_at),
+      thumbnailUrl: "",
+      heroImageUrl: "",
+      description: row.description,
+      architecturalNarrative: "",
+      specs: {
+        beds: row.beds,
+        baths: row.baths,
+        livingArea: row.living_area,
+        acreage: row.acreage,
+        builtYear: row.built_year,
+        garage: row.garage,
+        amenities: row.amenities,
+        price: row.price,
+      },
+      category: row.category,
+      status: row.status,
+      assignedClientId: "",
+      tourEmbedUrl: row.tour_embed_url || undefined,
+      scenes: [],
+    },
   };
 }
 

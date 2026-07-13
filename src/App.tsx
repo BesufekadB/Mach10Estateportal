@@ -34,6 +34,7 @@ const DashboardView = lazy(() => import("./components/DashboardView"));
 const ProjectDetailView = lazy(() => import("./components/ProjectDetailView"));
 const ProfileView = lazy(() => import("./components/ProfileView"));
 const AdminPortal = lazy(() => import("./components/AdminPortal"));
+const SharedTourPage = lazy(() => import("./components/SharedTourPage"));
 
 const getRouteMode = (): RouteMode => (window.location.pathname.startsWith("/admin") ? "admin" : "client");
 const isMarketingPath = () => {
@@ -41,6 +42,10 @@ const isMarketingPath = () => {
   return path === "/";
 };
 const isRecoveryPath = () => window.location.pathname === "/reset-password";
+const getSharedTourId = () => {
+  const match = window.location.pathname.match(/^\/tour\/([^/]+)\/?$/);
+  return match ? decodeURIComponent(match[1]) : null;
+};
 
 const isProfileSetupIncomplete = (user: UserProfile) =>
   !user.phoneNumber ||
@@ -485,6 +490,11 @@ function AppShell({
         {t("common.loading")}
       </div>
     );
+  }
+
+  const sharedTourId = getSharedTourId();
+  if (sharedTourId) {
+    return <Suspense fallback={viewFallback}><SharedTourPage projectId={sharedTourId} /></Suspense>;
   }
 
   if (!currentUser) {
