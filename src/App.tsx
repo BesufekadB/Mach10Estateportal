@@ -9,6 +9,7 @@ import LoginScreen from "./components/LoginScreen";
 import MarketingLandingPage from "./components/MarketingLandingPage";
 import PasswordResetScreen from "./components/PasswordResetScreen";
 import OnboardingScreen from "./components/OnboardingScreen";
+import LoadingScreen from "./components/LoadingScreen";
 import TopNavBar from "./components/TopNavBar";
 import { getLocaleFromLanguage, I18nProvider, useI18n } from "./lib/i18n";
 import {
@@ -795,9 +796,11 @@ export default function App() {
   const [preferredLanguage, setPreferredLanguage] = useState<"English (International)" | "Amharic">(
     (cachedUser?.preferredLanguage as "English (International)" | "Amharic") || "English (International)"
   );
+  const [showLoadingScreen, setShowLoadingScreen] = useState(true);
 
   return (
     <I18nProvider locale={getLocaleFromLanguage(preferredLanguage)}>
+      {showLoadingScreen ? <LoadingScreen onComplete={() => setShowLoadingScreen(false)} /> : null}
       <AppShell
         preferredLanguage={preferredLanguage}
         onPreferredLanguageChange={setPreferredLanguage}

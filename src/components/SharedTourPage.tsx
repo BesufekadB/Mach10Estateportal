@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Building2, MapPin, ShieldCheck } from "lucide-react";
+import { Bath, BedDouble, Building2, CalendarDays, CarFront, Maximize, MapPin, ShieldCheck } from "lucide-react";
 import { loadSharedTour } from "../lib/portalData";
 import { normalizeTourEmbedUrl } from "../lib/portalData";
 import type { Project } from "../types";
@@ -30,6 +30,13 @@ export default function SharedTourPage({ projectId }: { projectId: string }) {
   }
 
   const embedUrl = normalizeTourEmbedUrl(project.tourEmbedUrl ?? "");
+  const specifications = [
+    { label: "Bedrooms", value: project.specs.beds, icon: BedDouble },
+    { label: "Bathrooms", value: project.specs.baths, icon: Bath },
+    { label: "Living area", value: project.specs.livingArea, icon: Maximize },
+    { label: "Built", value: project.specs.builtYear, icon: CalendarDays },
+    { label: "Garage", value: project.specs.garage, icon: CarFront },
+  ].filter((item) => item.value && item.value !== "N/A" && item.value !== "-" && item.value !== "--");
   return (
     <main className="min-h-screen bg-[#12110f] text-white">
       <header className="max-w-7xl mx-auto px-5 py-5 flex items-center justify-between border-b border-white/10">
@@ -43,7 +50,20 @@ export default function SharedTourPage({ projectId }: { projectId: string }) {
         <div className="mt-8 overflow-hidden rounded-lg border border-white/15 bg-black aspect-video shadow-2xl">
           {embedUrl ? <iframe src={embedUrl} title={`${project.name} virtual tour`} className="h-full w-full" allow="fullscreen; autoplay; xr-spatial-tracking" allowFullScreen sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation" /> : project.scenes.length ? <TourViewer360 scene={project.scenes[activeSceneIndex]} scenes={project.scenes} onSelectScene={(scene) => setActiveSceneIndex(project.scenes.findIndex((item) => item.id === scene.id))} /> : <div className="h-full flex items-center justify-center text-center p-6 text-sm text-white/60">The interactive tour is being prepared. Please check back shortly.</div>}
         </div>
-        {project.description ? <p className="max-w-3xl mt-7 text-sm leading-7 text-white/70">{project.description}</p> : null}
+        <section className="mt-10 grid gap-8 lg:grid-cols-[1.15fr_0.85fr]">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.25em] text-[#ffdea5]">Property overview</p>
+            {project.description ? <p className="mt-4 max-w-3xl text-sm leading-7 text-white/70">{project.description}</p> : null}
+            {project.specs.amenities && project.specs.amenities !== "N/A" ? <div className="mt-6"><p className="text-[10px] uppercase tracking-[0.2em] text-white/45">Features and amenities</p><p className="mt-2 text-sm leading-7 text-white/75">{project.specs.amenities}</p></div> : null}
+          </div>
+          <aside className="rounded-lg border border-white/15 bg-white/[0.04] p-5 md:p-6">
+            <p className="text-[10px] uppercase tracking-[0.25em] text-[#ffdea5]">Property details</p>
+            <div className="mt-5 grid grid-cols-2 gap-4">
+              {specifications.map(({ label, value, icon: Icon }) => <div key={label} className="border-b border-white/10 pb-3"><Icon className="w-4 h-4 text-[#ffdea5]" /><p className="mt-2 text-[9px] uppercase tracking-widest text-white/45">{label}</p><p className="mt-1 text-sm text-white/90">{value}</p></div>)}
+            </div>
+            {project.specs.price ? <div className="mt-5 rounded-md bg-[#ffdea5]/10 px-4 py-3"><p className="text-[9px] uppercase tracking-widest text-[#ffdea5]">Asking price</p><p className="mt-1 font-display text-lg text-white">{project.specs.price}</p></div> : null}
+          </aside>
+        </section>
       </section>
     </main>
   );
