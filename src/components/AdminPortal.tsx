@@ -4,7 +4,7 @@
  */
 
 import { FormEvent, useEffect, useState } from "react";
-import { Building2, FileUp, FolderKanban, Layers, LayoutGrid, LogOut, Moon, Pencil, Sun, UploadCloud, UserRound } from "lucide-react";
+import { Building2, FileUp, FolderKanban, Layers, LayoutGrid, LogOut, Moon, Pencil, Plus, Sun, UploadCloud, UserRound, X } from "lucide-react";
 import { listAdminClients, listAdminProjects, createAdminProject, normalizeTourEmbedUrl, updateAdminProject } from "../lib/portalData";
 import { useI18n } from "../lib/i18n";
 import type { AdminClientSummary, AdminProjectRecord, CreateProjectInput, DataSourceMode, ProjectAssetType, UserProfile } from "../types";
@@ -71,6 +71,7 @@ export default function AdminPortal({ user, onLogout, theme, onToggleTheme, data
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [formState, setFormState] = useState<ProjectFormState>(() => initialForm);
+  const [customAmenity, setCustomAmenity] = useState("");
   const [files, setFiles] = useState<Partial<Record<ProjectAssetType, File>>>({});
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const fieldClass = "w-full bg-cream-low border border-outline-lucid/60 px-3 py-3 text-xs text-onyx rounded-[var(--radius-ui-sm)] outline-none";
@@ -120,6 +121,7 @@ export default function AdminPortal({ user, onLogout, theme, onToggleTheme, data
   const resetForm = () => {
     setEditingProjectId(null);
     setFormState(initialForm);
+    setCustomAmenity("");
     setFiles({});
   };
 
@@ -128,6 +130,7 @@ export default function AdminPortal({ user, onLogout, theme, onToggleTheme, data
     setError(null);
     setSuccess(null);
     setFiles({});
+    setCustomAmenity("");
     setFormState({
       clientUserId: entry.project.client_user_id,
       companyName: entry.project.company_name,
@@ -152,6 +155,22 @@ export default function AdminPortal({ user, onLogout, theme, onToggleTheme, data
       showcaseSceneCategory: entry.project.showcase_scene_category,
       showcaseSceneDescription: entry.project.showcase_scene_description,
     });
+  };
+
+  const amenityList = formState.amenities
+    .split(",")
+    .map((amenity) => amenity.trim())
+    .filter((amenity) => amenity && amenity !== t("common.na"));
+
+  const updateAmenities = (amenities: string[]) => {
+    setFormState((prev) => ({ ...prev, amenities: amenities.length ? amenities.join(", ") : t("common.na") }));
+  };
+
+  const addAmenity = (amenity: string) => {
+    const trimmedAmenity = amenity.trim();
+    if (!trimmedAmenity || amenityList.some((item) => item.toLowerCase() === trimmedAmenity.toLowerCase())) return;
+    updateAmenities([...amenityList, trimmedAmenity]);
+    setCustomAmenity("");
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -434,17 +453,34 @@ export default function AdminPortal({ user, onLogout, theme, onToggleTheme, data
 
               <div className="space-y-1">
                 <label className="text-[10px] uppercase tracking-widest text-neutral-stone">{t("adminPage.amenities")}</label>
-                <select
-                  value={formState.amenities}
-                  onChange={(event) => setFormState((prev) => ({ ...prev, amenities: event.target.value }))}
-                    className={fieldClass}
-                >
+                <div className="space-y-3 rounded-[var(--radius-ui-sm)] border border-outline-lucid/50 bg-cream-low p-3">
+                  <select value="" onChange={(event) => addAmenity(event.target.value)} className={fieldClass}>
+                    <option value="">Choose an amenity to add</option>
                   {amenityOptions.map((amenity) => (
                     <option key={amenity} value={amenity}>
                       {amenity}
                     </option>
                   ))}
-                </select>
+                  </select>
+                  <div className="flex gap-2">
+                    <input
+                      value={customAmenity}
+                      onChange={(event) => setCustomAmenity(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") {
+                          event.preventDefault();
+                          addAmenity(customAmenity);
+                        }
+                      }}
+                      placeholder="Type a custom amenity"
+                      className={fieldClass}
+                    />
+                    <button type="button" onClick={() => addAmenity(customAmenity)} className="inline-flex shrink-0 items-center gap-1 bg-primary px-3 text-[10px] font-semibold uppercase tracking-widest text-[#17120b]" aria-label="Add amenity">
+                      <Plus className="w-4 h-4" /> Add
+                    </button>
+                  </div>
+                  {amenityList.length ? <div className="flex flex-wrap gap-2">{amenityList.map((amenity) => <span key={amenity} className="inline-flex items-center gap-1 rounded-full border border-primary/35 bg-primary/10 px-2.5 py-1 text-[10px] text-onyx"><span>{amenity}</span><button type="button" onClick={() => updateAmenities(amenityList.filter((item) => item !== amenity))} className="text-neutral-stone hover:text-onyx" aria-label={`Remove ${amenity}`}><X className="w-3 h-3" /></button></span>)}</div> : <p className="text-[11px] text-neutral-stone">Select or add amenities to include them on the property page.</p>}
+                </div>
               </div>
 
               <div className="space-y-1">

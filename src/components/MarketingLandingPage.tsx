@@ -41,14 +41,21 @@ interface MarketingLandingPageProps {
 const sampleBackdrop =
   "linear-gradient(180deg, rgba(10,13,17,0.12), rgba(10,13,17,0.58)), url('https://lh3.googleusercontent.com/aida-public/AB6AXuAh6UOv8dxaqROF1MPP84PI74e7M686moMz9zQ-8lyg-KUBxD6QyUabIg2pvj7AnTvbkAQo6p4i05eNAAPkaN5nBRcQehGmKr9oVNv08soTOgfOHkc-0YjLyRikMK6IMNvdVo3UYmimlZRRaI6xQs-5k3LI8PAZkJsNpIZTlhrEVax2c4o3cdeP3kojN2d-kpj50VmiYuzT7z1NxYkY94RK3-e4MogYeKW8A9dVEPtJV46-2tH42VKgnQ')";
 
-const productionFeatures = ["Full tour setup", "High-resolution 360° capture", "Custom branded webpage"];
+const productionFeatures = [
+  "High-resolution 360° capture",
+  "Tour setup and launch",
+  "Up to 10 scenes",
+  "Navigation hotspots",
+  "Branded webpage or embed",
+  "One revision round",
+];
 
 const productionPlan = {
   name: "Production",
   price: "Br 20,000",
   cadence: "one-time",
-  volume: "01",
-  summary: "Tour setup & launch",
+  volume: "Per tour",
+  summary: "setup and launch",
   features: productionFeatures,
   cta: "Get started",
   featured: false,
@@ -57,31 +64,32 @@ const productionPlan = {
 const recurringPlans = [
   {
     name: "Essential",
-    price: "Br8,000",
+    price: "Br 8,000",
     cadence: "/mo",
-    volume: "01-05",
+    volume: "01-03",
     summary: "Active virtual tours",
-    features: ["Standard analytics", "Shared subdomain", "Client-ready hosting"],
+    features: ["Standard hosting", "Branded tour link", "Basic analytics", "Website embed support", "Monthly uptime support"],
     cta: "Select plan",
     featured: false,
   },
   {
     name: "Professional",
-    price: "Br14,000",
+    price: "Br 14,000",
     cadence: "/mo",
-    volume: "06-12",
+    volume: "04-07",
     summary: "Active virtual tours",
-    features: ["Heatmap engagement data", "Custom root domain", "Priority email support"],
+    features: ["Advanced analytics", "Custom tour domain", "Priority updates", "Monthly summary report", "Contact/CTA tracking"],
     cta: "Start professional",
     featured: true,
   },
   {
     name: "Enterprise",
-    price: "Br26,000",
+    price: "Br 26,000",
     cadence: "/mo",
-    volume: "12+",
-    summary: "Unlimited active tours",
-    features: ["Website sync", "White-label portal", "Executive rollout support"],
+    volume: "08-15",
+    summary: "Active virtual tours",
+    features: ["Dedicated tour collection", "Website integration support", "Advanced reporting", "Priority rollout support", "Multi-project management"],
+    note: "15+ active tours: custom quote",
     cta: "Contact sales",
     featured: false,
   },
@@ -365,7 +373,7 @@ export default function MarketingLandingPage({
                 </div>
 
                 <div className="mt-8 rounded-[1rem] border border-primary/20 bg-primary/10 px-4 py-4 text-sm leading-6 text-stone-variant">
-                  Best for premium listings, development launches, and investor presentations that need more than static media.
+                  Best for premium listings, show units, restaurants, offices, and project launches.
                 </div>
 
                 <button
@@ -415,6 +423,8 @@ export default function MarketingLandingPage({
                       </div>
                     ))}
                   </div>
+
+                  {plan.note ? <div className="mt-8 border-t border-outline-lucid/55 pt-5 text-sm text-primary">{plan.note}</div> : null}
 
                   <button
                     type="button"
